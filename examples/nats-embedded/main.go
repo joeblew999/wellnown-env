@@ -19,10 +19,13 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"net/http"
 	"net/url"
 	"os"
 	"os/signal"
+	"sort"
 	"strconv"
 	"syscall"
 	"time"
@@ -32,6 +35,23 @@ import (
 	"github.com/nats-io/nats.go"
 	"github.com/nats-io/nats.go/jetstream"
 )
+
+// ProcessState represents a single process from process-compose API
+type ProcessState struct {
+	Name      string `json:"name"`
+	Status    string `json:"status"`
+	IsRunning bool   `json:"is_running"`
+	Pid       int    `json:"pid"`
+	Health    string `json:"health,omitempty"`
+	Restarts  int    `json:"restarts"`
+}
+
+// ProcessStates wraps the API response
+type ProcessStates struct {
+	States []ProcessState `json:"data"`
+}
+
+const processUpdatesSubject = "pc.processes.updates"
 
 func main() {
 	if err := run(); err != nil {
@@ -176,6 +196,9 @@ func run() error {
 		}
 	}()
 
+	// Start process-compose poller - publishes to pc.processes.updates
+	go startProcessComposePoller(nc)
+
 	// List all registered services periodically
 	go func() {
 		ticker := time.NewTicker(15 * time.Second)
@@ -237,4 +260,65 @@ func getEnvInt(key string, defaultVal int) int {
 		}
 	}
 	return defaultVal
+}
+
+// getProcessComposeURL returns the process-compose API URL
+func getProcessComposeURL() string {
+	if url := os.Getenv("PC_URL"); url != "" {
+		return url
+	}
+	addr := getEnv("PC_ADDRESS", "localhost")
+	port := getEnv("PC_PORT", "8181")
+	return fmt.Sprintf("http://%s:%s", addr, port)
+}
+
+// fetchProcessStates calls process-compose API to get process states
+func fetchProcessStates(pcURL string) ([]ProcessState, error) {
+	resp, err := http.Get(pcURL + "/processes")
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	var states ProcessStates
+	if err := json.NewDecoder(resp.Body).Decode(&states); err != nil {
+		return nil, err
+	}
+	return states.States, nil
+}
+
+// startProcessComposePoller polls process-compose API and publishes to NATS
+func startProcessComposePoller(nc *nats.Conn) {
+	pcURL := getProcessComposeURL()
+	ticker := time.NewTicker(2 * time.Second)
+	defer ticker.Stop()
+
+	fmt.Printf("Starting process-compose poller (URL: %s)\n", pcURL)
+
+	// Initial fetch
+	publishProcessStates(nc, pcURL)
+
+	for range ticker.C {
+		publishProcessStates(nc, pcURL)
+	}
+}
+
+// publishProcessStates fetches and publishes process states to NATS
+func publishProcessStates(nc *nats.Conn, pcURL string) {
+	states, err := fetchProcessStates(pcURL)
+	if err != nil {
+		// Silent fail - process-compose may not be running
+		return
+	}
+
+	// Sort by name for stable ordering
+	sort.Slice(states, func(i, j int) bool {
+		return states[i].Name < states[j].Name
+	})
+
+	body, err := json.Marshal(states)
+	if err != nil {
+		return
+	}
+
+	_ = nc.Publish(processUpdatesSubject, body)
 }

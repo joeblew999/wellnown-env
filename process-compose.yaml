@@ -1,14 +1,18 @@
 # Root-level process-compose to orchestrate NATS + Via
 #
 # Usage:
-#   process-compose up        # Start both services
+#   process-compose up        # Start with API server
 #   process-compose up --tui  # Start with TUI
 #   process-compose down      # Stop all
 #
-# This demonstrates the wellnown-env architecture where Via
-# depends on NATS being healthy before starting.
+# Configuration is loaded from .env file (single source of truth).
+# Ports, URLs, and bucket names are defined once in .env and used
+# by Taskfile, process-compose, and Go code.
 
 version: "0.5"
+
+# Load shared configuration from .env
+env_file: .env
 
 processes:
   # NATS hub - the central config/registry store
@@ -16,25 +20,110 @@ processes:
     command: go run main.go
     working_dir: examples/nats-embedded
     environment:
-      - NATS_NAME=hub
-      - NATS_PORT=4222
-      - GOWORK=off
+      - NATS_NAME=${NATS_NAME}
+      - NATS_PORT=${NATS_PORT}
+      - NATS_DATA=${NATS_DATA}
     readiness_probe:
       exec:
-        command: "nc -z localhost 4222"
+        command: "nc -z localhost ${NATS_PORT}"
       initial_delay_seconds: 2
       period_seconds: 1
       timeout_seconds: 1
       success_threshold: 1
       failure_threshold: 10
 
-  # Via dashboard - web UI on port 3000
+  # Via dashboard - web UI (with live reload)
   via:
-    command: go run main.go
+    command: go run .
     working_dir: examples/via-embed
     environment:
-      - VIA_THEME=purple
-      - GOWORK=off
+      - VIA_THEME=${VIA_THEME}
+      - VIA_PORT=${VIA_PORT}
+    is_restart: always
+    watched_files:
+      - "**/*.go"
+    readiness_probe:
+      exec:
+        command: "curl -sf http://localhost:${VIA_PORT}/healthz || exit 1"
+      initial_delay_seconds: 2
+      period_seconds: 5
+      timeout_seconds: 2
+      success_threshold: 1
+      failure_threshold: 5
     depends_on:
       nats:
         condition: process_healthy
+
+  # Embedded process-compose demo (runs its own mini stack)
+  pc-embed:
+    command: go run main.go
+    working_dir: examples/process-compose-embed
+    environment:
+      - PC_EMBED_PORT=${PC_EMBED_PORT}
+    readiness_probe:
+      exec:
+        command: "curl -sf http://localhost:${PC_EMBED_PORT}/healthz || exit 1"
+      initial_delay_seconds: 2
+      period_seconds: 5
+      timeout_seconds: 2
+      success_threshold: 1
+      failure_threshold: 5
+
+  # Narun microservice example (NATS Micro)
+  narun-hello:
+    command: go run main.go
+    working_dir: examples/narun-hello
+    environment:
+      - NATS_URL=${NATS_URL}
+      - NARUN_HEALTH_ADDR=${NARUN_HEALTH_ADDR}
+    depends_on:
+      nats:
+        condition: process_healthy
+    readiness_probe:
+      exec:
+        command: "curl -sf http://localhost${NARUN_HEALTH_ADDR}/healthz || exit 1"
+      initial_delay_seconds: 2
+      period_seconds: 5
+      timeout_seconds: 2
+      success_threshold: 1
+      failure_threshold: 5
+
+  # Narun gateway forwarding HTTP to NATS Micro service
+  narun-gw:
+    command: go run github.com/akhenakh/narun/cmd/narun-gw@latest -config narun-gw.yaml
+    working_dir: examples/narun-hello
+    environment:
+      - NATS_URL=${NATS_URL}
+      - NARUN_GW_PORT=${NARUN_GW_PORT}
+    depends_on:
+      nats:
+        condition: process_healthy
+      narun-hello:
+        condition: process_healthy
+    readiness_probe:
+      exec:
+        command: "curl -sf http://localhost:${NARUN_GW_PORT}/ || exit 1"
+      initial_delay_seconds: 3
+      period_seconds: 5
+      timeout_seconds: 2
+      success_threshold: 1
+      failure_threshold: 5
+
+  # Dogfood: run the nats-embedded process-compose as a managed process
+  pc-nats-embedded:
+    command: process-compose up --config examples/nats-embedded/process-compose.yaml --address ${PC_ADDRESS} --port 8383
+    working_dir: .
+    environment:
+      - PC_DISABLE_TUI=1
+      - PC_LOG_FILE=examples/nats-embedded/process-compose.log
+    depends_on:
+      nats:
+        condition: process_healthy
+    readiness_probe:
+      exec:
+        command: "curl -sf http://localhost:8383/processes || exit 1"
+      initial_delay_seconds: 3
+      period_seconds: 5
+      timeout_seconds: 2
+      success_threshold: 1
+      failure_threshold: 5

@@ -1,0 +1,13 @@
+# Narun gateway config pointing to the hello micro service.
+# HTTP requests to "/" are routed to service "narun.hello".
+
+nats_url: "nats://localhost:4222"
+server_addr: ":8088"
+grpc_addr: ""        # disable gRPC for this demo
+metrics_addr: ":9098"
+request_timeout_seconds: 10
+
+routes:
+  - path: "/"
+    methods: ["GET", "POST"]
+    service: "narun_hello"

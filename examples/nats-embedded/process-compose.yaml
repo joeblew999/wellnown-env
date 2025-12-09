@@ -13,14 +13,15 @@ processes:
   # Runs in standalone mode (no NATS_HUB set)
   hub:
     command: go run main.go
-    working_dir: .
+    working_dir: examples/nats-embedded
     environment:
       - NATS_NAME=hub
-      - NATS_PORT=4222
+      - NATS_PORT=6322
+      - NATS_DATA=./data/hub
       - GOWORK=off
     readiness_probe:
       exec:
-        command: "nc -z localhost 4222"
+        command: "nc -z localhost 6322"
       initial_delay_seconds: 2
       period_seconds: 1
       timeout_seconds: 1
@@ -30,11 +31,12 @@ processes:
   # Service A - leaf node
   svc-a:
     command: go run main.go
-    working_dir: .
+    working_dir: examples/nats-embedded
     environment:
       - NATS_NAME=svc-a
       - NATS_PORT=4223
-      - NATS_HUB=nats://localhost:5222
+      - NATS_HUB=nats://localhost:6322
+      - NATS_DATA=./data/svc-a
       - GOWORK=off
     depends_on:
       hub:
@@ -43,11 +45,12 @@ processes:
   # Service B - leaf node
   svc-b:
     command: go run main.go
-    working_dir: .
+    working_dir: examples/nats-embedded
     environment:
       - NATS_NAME=svc-b
       - NATS_PORT=4224
-      - NATS_HUB=nats://localhost:5222
+      - NATS_HUB=nats://localhost:6322
+      - NATS_DATA=./data/svc-b
       - GOWORK=off
     depends_on:
       hub:
@@ -56,11 +59,12 @@ processes:
   # Service C - leaf node
   svc-c:
     command: go run main.go
-    working_dir: .
+    working_dir: examples/nats-embedded
     environment:
       - NATS_NAME=svc-c
       - NATS_PORT=4225
-      - NATS_HUB=nats://localhost:5222
+      - NATS_HUB=nats://localhost:6322
+      - NATS_DATA=./data/svc-c
       - GOWORK=off
     depends_on:
       hub:
@@ -69,11 +73,12 @@ processes:
   # Service D - leaf node
   svc-d:
     command: go run main.go
-    working_dir: .
+    working_dir: examples/nats-embedded
     environment:
       - NATS_NAME=svc-d
       - NATS_PORT=4226
-      - NATS_HUB=nats://localhost:5222
+      - NATS_HUB=nats://localhost:6322
+      - NATS_DATA=./data/svc-d
       - GOWORK=off
     depends_on:
       hub:

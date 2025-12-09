@@ -1,0 +1,367 @@
+version: '3'
+
+# Load shared constants from .env (single source of truth)
+dotenv: ['.env']
+
+vars:
+  # Process-compose configuration - defaults from .env, override via CLI
+  PC_CONFIG: '{{default "process-compose.yaml" .PC_CONFIG}}'
+  PC_PROCESS: '{{default "" .PC_PROCESS}}'
+  PC_TAIL: '{{default "200" .PC_TAIL}}'
+  PC_FOLLOW: '{{default "" .PC_FOLLOW}}'
+
+  # Port to free (for port:free task)
+  PORT: '{{default "8080" .PORT}}'
+
+  # KV bucket names from .env
+  KV_CONFIG: '{{.NATS_KV_CONFIG}}'
+  KV_SERVICES: '{{.NATS_KV_SERVICES}}'
+
+tasks:
+  default:
+    cmds:
+      - task --list-all
+
+  #############################################################################
+  # Dependencies
+  #############################################################################
+
+  deps:
+    desc: Install all dependencies
+    cmds:
+      - task: deps:pc
+      - task: deps:nats
+
+  deps:pc:
+    desc: Install process-compose
+    cmds:
+      - go install github.com/f1bonacc1/process-compose@v1.85.0
+      - process-compose version
+
+  deps:nats:
+    desc: Install NATS CLI
+    cmds:
+      - go install github.com/nats-io/natscli/nats@latest
+      - nats --version
+
+  #############################################################################
+  # Process-Compose Tasks (DRY via internal _pc task)
+  #############################################################################
+
+  # Internal task - all PC commands go through here
+  # Uses PC_ADDRESS and PC_PORT from .env
+  _pc:
+    internal: true
+    vars:
+      LOG_DIR:
+        sh: dirname "{{.PC_CONFIG}}"
+    env:
+      PC_LOG_FILE: '{{.LOG_DIR}}/process-compose.log'
+      PC_DISABLE_TUI: '{{if eq .PC_TUI "true"}}0{{else}}1{{end}}'
+    cmds:
+      - mkdir -p "{{.LOG_DIR}}"
+      - '{{.CMD}}'
+
+  pc:up:
+    desc: Start process-compose (detached)
+    cmds:
+      - task: _pc
+        vars:
+          CMD: process-compose up --config '{{.PC_CONFIG}}' --address '{{.PC_ADDRESS}}' --port '{{.PC_PORT}}' --detached
+
+  pc:down:
+    desc: Stop process-compose
+    cmds:
+      - task: _pc
+        vars:
+          CMD: process-compose down --address '{{.PC_ADDRESS}}' --port '{{.PC_PORT}}'
+
+  pc:attach:
+    desc: Attach to process-compose TUI
+    cmds:
+      - task: _pc
+        vars:
+          CMD: process-compose attach --address '{{.PC_ADDRESS}}' --port '{{.PC_PORT}}'
+
+  pc:info:
+    desc: Show process-compose info
+    cmds:
+      - task: _pc
+        vars:
+          CMD: process-compose info --address '{{.PC_ADDRESS}}' --port '{{.PC_PORT}}'
+
+  pc:list:
+    desc: List all processes
+    cmds:
+      - task: _pc
+        vars:
+          CMD: process-compose process list --address '{{.PC_ADDRESS}}' --port '{{.PC_PORT}}'
+
+  pc:ports:
+    desc: Show ports for all processes (or PC_PROCESS=name for one)
+    cmds:
+      - task: _pc
+        vars:
+          CMD: process-compose process ports {{.PC_PROCESS}} --address '{{.PC_ADDRESS}}' --port '{{.PC_PORT}}'
+
+  pc:restart:
+    desc: Restart a process (PC_PROCESS=name required)
+    preconditions:
+      - sh: '[ -n "{{.PC_PROCESS}}" ]'
+        msg: "Set PC_PROCESS=<name> to restart"
+    cmds:
+      - task: _pc
+        vars:
+          CMD: process-compose process restart {{.PC_PROCESS}} --address '{{.PC_ADDRESS}}' --port '{{.PC_PORT}}'
+
+  pc:stop:
+    desc: Stop a process (PC_PROCESS=name required)
+    preconditions:
+      - sh: '[ -n "{{.PC_PROCESS}}" ]'
+        msg: "Set PC_PROCESS=<name> to stop"
+    cmds:
+      - task: _pc
+        vars:
+          CMD: process-compose process stop {{.PC_PROCESS}} --address '{{.PC_ADDRESS}}' --port '{{.PC_PORT}}'
+
+  pc:start:
+    desc: Start a process (PC_PROCESS=name required)
+    preconditions:
+      - sh: '[ -n "{{.PC_PROCESS}}" ]'
+        msg: "Set PC_PROCESS=<name> to start"
+    cmds:
+      - task: _pc
+        vars:
+          CMD: process-compose process start {{.PC_PROCESS}} --address '{{.PC_ADDRESS}}' --port '{{.PC_PORT}}'
+
+  pc:logs:
+    desc: Show logs for a process (PC_PROCESS=name required, PC_FOLLOW=1 for follow)
+    preconditions:
+      - sh: '[ -n "{{.PC_PROCESS}}" ]'
+        msg: "Set PC_PROCESS=<name> to view logs"
+    cmds:
+      - task: _pc
+        vars:
+          CMD: process-compose process logs {{.PC_PROCESS}} --address '{{.PC_ADDRESS}}' --port '{{.PC_PORT}}' --tail {{.PC_TAIL}}{{if .PC_FOLLOW}} --follow{{end}}
+
+  pc:state:
+    desc: Show project state
+    cmds:
+      - task: _pc
+        vars:
+          CMD: process-compose project state --address '{{.PC_ADDRESS}}' --port '{{.PC_PORT}}'
+
+  pc:ready:
+    desc: Check if project is ready (add --wait for blocking)
+    cmds:
+      - task: _pc
+        vars:
+          CMD: process-compose project is-ready --address '{{.PC_ADDRESS}}' --port '{{.PC_PORT}}'
+
+  pc:update:
+    desc: Update project configuration
+    cmds:
+      - task: _pc
+        vars:
+          CMD: process-compose project update --config '{{.PC_CONFIG}}' --address '{{.PC_ADDRESS}}' --port '{{.PC_PORT}}'
+
+  #############################################################################
+  # Port Management
+  #############################################################################
+
+  port:free:
+    desc: Free a port by killing processes (PORT=8080)
+    cmds:
+      - |
+        pids=$(lsof -ti :{{.PORT}} 2>/dev/null || true)
+        if [ -n "$pids" ]; then
+          echo "Killing processes on port {{.PORT}}: $pids"
+          kill $pids
+        else
+          echo "No processes found on port {{.PORT}}"
+        fi
+
+  #############################################################################
+  # NATS CLI Tasks (DRY via internal _nats task)
+  #############################################################################
+
+  # Internal task - all NATS commands go through here
+  _nats:
+    internal: true
+    cmds:
+      - nats -s '{{.NATS_URL}}' {{.CMD}}
+
+  nats:status:
+    desc: Show NATS server status
+    cmds:
+      - task: _nats
+        vars: { CMD: 'server info' }
+
+  nats:kv:list:
+    desc: List all KV buckets
+    cmds:
+      - task: _nats
+        vars: { CMD: 'kv ls' }
+
+  nats:kv:via:
+    desc: Show all keys in via_config bucket
+    cmds:
+      - task: _nats
+        vars: { CMD: 'kv ls {{.KV_CONFIG}}' }
+
+  nats:bucket:info:
+    desc: Show info about via_config bucket
+    cmds:
+      - task: _nats
+        vars: { CMD: 'kv info {{.KV_CONFIG}}' }
+
+  #############################################################################
+  # Theme (NATS KV)
+  #############################################################################
+
+  nats:theme:get:
+    desc: Get current theme from NATS KV
+    cmds:
+      - nats -s '{{.NATS_URL}}' kv get '{{.KV_CONFIG}}' theme || echo "(not set)"
+
+  nats:theme:set:
+    desc: 'Set theme (e.g., task nats:theme:set -- purple)'
+    cmds:
+      - task: _nats
+        vars: { CMD: 'kv put {{.KV_CONFIG}} theme "{{.CLI_ARGS}}"' }
+      - echo "Theme set to '{{.CLI_ARGS}}' - check /themes in browser!"
+
+  #############################################################################
+  # Counter (NATS KV)
+  #############################################################################
+
+  nats:counter:get:
+    desc: Get current counter value
+    cmds:
+      - nats -s '{{.NATS_URL}}' kv get '{{.KV_CONFIG}}' counter || echo "(not set)"
+
+  nats:counter:set:
+    desc: 'Set counter value (e.g., task nats:counter:set -- 42)'
+    cmds:
+      - task: _nats
+        vars: { CMD: 'kv put {{.KV_CONFIG}} counter ''{"value":{{.CLI_ARGS}},"updated_by":"cli-user"}''' }
+      - echo "Counter set to {{.CLI_ARGS}} - check /counter in browser!"
+
+  nats:counter:inc:
+    desc: Increment counter from CLI
+    cmds:
+      - |
+        current=$(nats -s '{{.NATS_URL}}' kv get '{{.KV_CONFIG}}' counter 2>/dev/null | grep '^{' | jq -r '.value // 0')
+        new=$((current + 1))
+        nats -s '{{.NATS_URL}}' kv put '{{.KV_CONFIG}}' counter "{\"value\":$new,\"updated_by\":\"cli-user\"}"
+        echo "Counter incremented to $new - check /counter in browser!"
+
+  #############################################################################
+  # Chat (NATS Pub/Sub)
+  #############################################################################
+
+  nats:chat:send:
+    desc: 'Send chat message (e.g., task nats:chat:send -- "Hello!")'
+    cmds:
+      - |
+        timestamp=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+        echo "{\"from\":\"cli-user\",\"text\":\"{{.CLI_ARGS}}\",\"time\":\"$timestamp\"}" | nats -s '{{.NATS_URL}}' pub via.chat
+      - echo "Message sent - check /chat in browser!"
+
+  nats:chat:sub:
+    desc: Subscribe to chat messages (Ctrl+C to stop)
+    cmds:
+      - task: _nats
+        vars: { CMD: 'sub via.chat' }
+
+  #############################################################################
+  # Config (NATS KV)
+  #############################################################################
+
+  nats:config:list:
+    desc: List all config values
+    cmds:
+      - |
+        echo "=== Config Values ==="
+        for key in app.name app.debug app.log_level feature.flag1 feature.flag2 service.timeout service.retry_count; do
+          val=$(nats -s '{{.NATS_URL}}' kv get '{{.KV_CONFIG}}' "config.$key" 2>/dev/null || echo "(not set)")
+          echo "$key: $val"
+        done
+
+  nats:config:set:
+    desc: 'Set config value (e.g., task nats:config:set -- app.debug true)'
+    cmds:
+      - |
+        args="{{.CLI_ARGS}}"
+        key="${args%% *}"
+        value="${args#* }"
+        nats -s '{{.NATS_URL}}' kv put '{{.KV_CONFIG}}' "config.$key" "$value"
+        echo "Config $key set to '$value' - check /config in browser!"
+
+  nats:config:del:
+    desc: 'Delete config key (e.g., task nats:config:del -- app.debug)'
+    cmds:
+      - task: _nats
+        vars: { CMD: 'kv del {{.KV_CONFIG}} "config.{{.CLI_ARGS}}" -f' }
+      - echo "Config {{.CLI_ARGS}} deleted - check /config in browser!"
+
+  #############################################################################
+  # Monitor (NATS Subscriptions)
+  #############################################################################
+
+  nats:mon:
+    desc: Monitor all NATS messages (Ctrl+C to stop)
+    cmds:
+      - task: _nats
+        vars: { CMD: 'sub ">"' }
+
+  nats:mon:via:
+    desc: Monitor via.* subjects only
+    cmds:
+      - task: _nats
+        vars: { CMD: 'sub "via.>"' }
+
+  nats:mon:kv:
+    desc: Monitor KV changes
+    cmds:
+      - task: _nats
+        vars: { CMD: 'sub ''$KV.>''' }
+
+  #############################################################################
+  # Services Registry
+  #############################################################################
+
+  nats:services:
+    desc: List registered services
+    cmds:
+      - nats -s '{{.NATS_URL}}' kv ls '{{.KV_SERVICES}}' 2>/dev/null || echo "No services registered"
+
+  #############################################################################
+  # Process Control via NATS (requires Via running)
+  #############################################################################
+
+  nats:pc:status:
+    desc: Request process-compose state via NATS
+    cmds:
+      - task: _nats
+        vars: { CMD: 'req pc.processes '''' --timeout 3s' }
+
+  nats:pc:control:
+    desc: 'Control process via NATS (e.g., task nats:pc:control -- action=restart name=via)'
+    preconditions:
+      - sh: '[ -n "{{.CLI_ARGS}}" ]'
+        msg: "Usage: task nats:pc:control -- action=start|stop|restart name=<process>"
+    cmds:
+      - |
+        action="" name=""
+        for kv in {{.CLI_ARGS}}; do
+          case "$kv" in
+            action=*) action="${kv#*=}" ;;
+            name=*) name="${kv#*=}" ;;
+          esac
+        done
+        if [ -z "$action" ] || [ -z "$name" ]; then
+          echo "Provide action=<start|stop|restart> and name=<proc>"; exit 1;
+        fi
+        payload="{\"action\":\"$action\",\"name\":\"$name\"}"
+        nats -s '{{.NATS_URL}}' req pc.processes.control "$payload" --timeout 3s

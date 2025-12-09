@@ -4,7 +4,8 @@
 // similar to how we embed NATS. This could be used to manage binaries pulled via NATS.
 //
 // Run:
-//   go run main.go
+//
+//	go run main.go
 //
 // The example:
 // 1. Loads a process-compose.yaml config
@@ -15,6 +16,7 @@ package main
 
 import (
 	"fmt"
+	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
@@ -35,6 +37,8 @@ func run() error {
 	fmt.Println("Process-Compose Embedded Example")
 	fmt.Println("=================================")
 	fmt.Println()
+
+	healthAddr := getEnv("PC_EMBED_HEALTH_ADDR", ":8092")
 
 	// Step 1: Load configuration from YAML file
 	fmt.Println("Loading process-compose.yaml...")
@@ -61,15 +65,33 @@ func run() error {
 	projectOpts := &app.ProjectOpts{}
 	projectOpts.
 		WithProject(project).
-		WithProcessesToRun([]string{}).    // Empty = run all non-disabled processes
-		WithNoDeps(false).                  // false means respect dependencies
-		WithIsTuiOn(false).                 // Headless mode
+		WithProcessesToRun([]string{}). // Empty = run all non-disabled processes
+		WithNoDeps(false).              // false means respect dependencies
+		WithIsTuiOn(false).             // Headless mode
 		WithOrderedShutdown(true)
 
 	runner, err := app.NewProjectRunner(projectOpts)
 	if err != nil {
 		return fmt.Errorf("creating runner: %w", err)
 	}
+
+	// Health endpoint for readiness probes
+	go func() {
+		mux := http.NewServeMux()
+		mux.HandleFunc("/healthz", func(w http.ResponseWriter, r *http.Request) {
+			states, err := runner.GetProcessesState()
+			if err != nil || !states.IsReady() {
+				w.WriteHeader(http.StatusServiceUnavailable)
+				_, _ = w.Write([]byte("not ready"))
+				return
+			}
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte("ok"))
+		})
+		if err := http.ListenAndServe(healthAddr, mux); err != nil {
+			fmt.Printf("health server error: %v\n", err)
+		}
+	}()
 
 	// Step 3: Start processes in background
 	fmt.Println("Starting processes...")
@@ -139,4 +161,11 @@ func run() error {
 			}
 		}
 	}
+}
+
+func getEnv(key, def string) string {
+	if v := os.Getenv(key); v != "" {
+		return v
+	}
+	return def
 }
