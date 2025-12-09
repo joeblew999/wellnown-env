@@ -1,0 +1,80 @@
+# Process Compose configuration for NATS embedded mesh testing
+#
+# This runs 1 hub + 4 leaf nodes to demonstrate the wellnown-env architecture
+#
+# Run: process-compose up
+# Stop: process-compose down
+# Logs: process-compose logs hub (or svc-a, svc-b, etc.)
+
+version: "0.5"
+
+processes:
+  # Hub node - the central NATS server that leaf nodes connect to
+  # Runs in standalone mode (no NATS_HUB set)
+  hub:
+    command: go run main.go
+    working_dir: .
+    environment:
+      - NATS_NAME=hub
+      - NATS_PORT=4222
+      - GOWORK=off
+    readiness_probe:
+      exec:
+        command: "nc -z localhost 4222"
+      initial_delay_seconds: 2
+      period_seconds: 1
+      timeout_seconds: 1
+      success_threshold: 1
+      failure_threshold: 10
+
+  # Service A - leaf node
+  svc-a:
+    command: go run main.go
+    working_dir: .
+    environment:
+      - NATS_NAME=svc-a
+      - NATS_PORT=4223
+      - NATS_HUB=nats://localhost:5222
+      - GOWORK=off
+    depends_on:
+      hub:
+        condition: process_healthy
+
+  # Service B - leaf node
+  svc-b:
+    command: go run main.go
+    working_dir: .
+    environment:
+      - NATS_NAME=svc-b
+      - NATS_PORT=4224
+      - NATS_HUB=nats://localhost:5222
+      - GOWORK=off
+    depends_on:
+      hub:
+        condition: process_healthy
+
+  # Service C - leaf node
+  svc-c:
+    command: go run main.go
+    working_dir: .
+    environment:
+      - NATS_NAME=svc-c
+      - NATS_PORT=4225
+      - NATS_HUB=nats://localhost:5222
+      - GOWORK=off
+    depends_on:
+      hub:
+        condition: process_healthy
+
+  # Service D - leaf node
+  svc-d:
+    command: go run main.go
+    working_dir: .
+    environment:
+      - NATS_NAME=svc-d
+      - NATS_PORT=4226
+      - NATS_HUB=nats://localhost:5222
+      - GOWORK=off
+    depends_on:
+      hub:
+        condition: process_healthy

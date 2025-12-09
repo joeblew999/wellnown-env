@@ -1,0 +1,34 @@
+# Reference source clones
+.src/
+
+# Playwright screenshots
+.playwright-mcp/
+
+# Go binaries
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Example binaries (named after their directory)
+examples/*/via-embed
+examples/*/process-compose-embed
+examples/*/nats-embed
+examples/*/conf-only
+
+# Test binaries
+*.test
+
+# Output of go coverage
+*.out
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db

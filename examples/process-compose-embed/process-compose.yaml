@@ -1,0 +1,54 @@
+# Sample process-compose config for embedding example
+#
+# This demonstrates managing multiple processes with health checks,
+# dependencies, and automatic restarts.
+
+version: "0.5"
+
+processes:
+  # Simple echo process that runs periodically
+  ticker:
+    command: |
+      while true; do
+        echo "[ticker] $(date '+%H:%M:%S') - tick"
+        sleep 5
+      done
+    readiness_probe:
+      exec:
+        command: "true"
+      initial_delay_seconds: 1
+
+  # Counter process that depends on ticker
+  counter:
+    command: |
+      count=0
+      while true; do
+        count=$((count + 1))
+        echo "[counter] Count: $count"
+        sleep 3
+      done
+    depends_on:
+      ticker:
+        condition: process_healthy
+    readiness_probe:
+      exec:
+        command: "true"
+      initial_delay_seconds: 1
+
+  # Logger that depends on both
+  logger:
+    command: |
+      echo "[logger] Starting up..."
+      while true; do
+        echo "[logger] $(date '+%H:%M:%S') - All systems operational"
+        sleep 10
+      done
+    depends_on:
+      ticker:
+        condition: process_healthy
+      counter:
+        condition: process_healthy
+    readiness_probe:
+      exec:
+        command: "true"
+      initial_delay_seconds: 2
