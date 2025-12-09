@@ -11,11 +11,12 @@
 *.so
 *.dylib
 
-# Example binaries (named after their directory)
-examples/*/via-embed
-examples/*/process-compose-embed
-examples/*/nats-embed
-examples/*/conf-only
+# Example binaries (Go builds binary with directory name inside that directory)
+# These match the exact binary files, not source directories
+examples/via-embed/via-embed
+examples/process-compose-embed/process-compose-embed
+examples/nats-embed/nats-embed
+examples/conf-only/conf-only
 
 # Test binaries
 *.test
