@@ -1,0 +1,40 @@
+# Root-level process-compose to orchestrate NATS + Via
+#
+# Usage:
+#   process-compose up        # Start both services
+#   process-compose up --tui  # Start with TUI
+#   process-compose down      # Stop all
+#
+# This demonstrates the wellnown-env architecture where Via
+# depends on NATS being healthy before starting.
+
+version: "0.5"
+
+processes:
+  # NATS hub - the central config/registry store
+  nats:
+    command: go run main.go
+    working_dir: examples/nats-embedded
+    environment:
+      - NATS_NAME=hub
+      - NATS_PORT=4222
+      - GOWORK=off
+    readiness_probe:
+      exec:
+        command: "nc -z localhost 4222"
+      initial_delay_seconds: 2
+      period_seconds: 1
+      timeout_seconds: 1
+      success_threshold: 1
+      failure_threshold: 10
+
+  # Via dashboard - web UI on port 3000
+  via:
+    command: go run main.go
+    working_dir: examples/via-embed
+    environment:
+      - VIA_THEME=purple
+      - GOWORK=off
+    depends_on:
+      nats:
+        condition: process_healthy

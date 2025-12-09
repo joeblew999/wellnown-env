@@ -94,8 +94,8 @@ func run() error {
 	// Start in background
 	go ns.Start()
 
-	// Wait for server to be ready
-	if !ns.ReadyForConnections(5 * time.Second) {
+	// Wait for server to be ready (15s for go run which includes compile time)
+	if !ns.ReadyForConnections(15 * time.Second) {
 		return fmt.Errorf("server not ready")
 	}
 
