@@ -21,7 +21,7 @@ examples/narun-hello/narun-hello
 examples/conf-only/conf-only
 
 # NATS JetStream data
-**/data/jetstream/
+**/nats-embedded/data/
 
 # Process-compose logs
 process-compose.log
