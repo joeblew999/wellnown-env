@@ -1,0 +1,78 @@
+# Sample process-compose config for embedding example
+#
+# This demonstrates managing multiple processes with health checks,
+# dependencies, and automatic restarts.
+#
+# Environment Variables (set by process-compose, read by Go code):
+#   VIA_ADDR    - Via web UI bind address (default: :3000)
+#   VIA_PORT    - Via web UI port (default: 3000)
+#   VIA_HOST    - Via host for display URLs (default: localhost)
+#   PC_ADDRESS  - Process-compose API address (default: localhost)
+#   PC_PORT     - Process-compose API port (default: 8181)
+#   APP_NAME    - Application name for dashboard
+#   LOG_LEVEL   - Logging level: debug, info, warn, error
+#   DEBUG       - Enable debug mode (true/false)
+#
+# Run: task run  (embedded Go mode)
+#      task os:up (OS binary mode)
+
+version: "0.5"
+
+# Global environment - inherited by all processes
+# These are the single source of truth for configuration
+environment:
+  VIA_PORT: "3000"
+  VIA_HOST: "localhost"
+  PC_PORT: "8181"
+  PC_ADDRESS: "localhost"
+  APP_NAME: "pc-node"
+  LOG_LEVEL: "info"
+  DEBUG: "false"
+
+processes:
+  # Simple echo process that runs periodically
+  ticker:
+    command: |
+      while true; do
+        echo "[ticker] $(date '+%H:%M:%S') - tick"
+        sleep 5
+      done
+    readiness_probe:
+      exec:
+        command: "true"
+      initial_delay_seconds: 1
+
+  # Counter process that depends on ticker
+  counter:
+    command: |
+      count=0
+      while true; do
+        count=$((count + 1))
+        echo "[counter] Count: $count"
+        sleep 3
+      done
+    depends_on:
+      ticker:
+        condition: process_healthy
+    readiness_probe:
+      exec:
+        command: "true"
+      initial_delay_seconds: 1
+
+  # Logger that depends on both
+  logger:
+    command: |
+      echo "[logger] Starting up..."
+      while true; do
+        echo "[logger] $(date '+%H:%M:%S') - All systems operational"
+        sleep 10
+      done
+    depends_on:
+      ticker:
+        condition: process_healthy
+      counter:
+        condition: process_healthy
+    readiness_probe:
+      exec:
+        command: "true"
+      initial_delay_seconds: 2

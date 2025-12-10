@@ -1,0 +1,204 @@
+version: '3'
+
+# Taskfile: process-compose includable tasks
+#
+# Include in your Taskfile:
+#   includes:
+#     pc:
+#       taskfile: Taskfile.pc.yml
+#       vars:
+#         PC_CONFIG: pc.yaml  # optional, defaults to this
+#
+# Tasks: up, down, attach, info, list, ports, restart, stop, start, logs, state, ready, update
+#
+# Environment variables (from .env or CLI):
+#   PC_ADDRESS  - API address (default: localhost)
+#   PC_PORT     - API port (default: 8181)
+#   PC_CONFIG   - Config file path (default: pc.yaml)
+#   PC_PROCESS  - Process name for single-process operations
+#   PC_TAIL     - Number of log lines (default: 200)
+#   PC_FOLLOW   - Set to "1" to follow logs
+#   PC_TUI      - Set to "true" to enable TUI
+
+vars:
+  # Process-compose configuration - defaults, override via CLI or .env
+  PC_CONFIG: '{{default "pc.yaml" .PC_CONFIG}}'
+  PC_ADDRESS: '{{default "localhost" .PC_ADDRESS}}'
+  PC_PORT: '{{default "8181" .PC_PORT}}'
+  PC_PROCESS: '{{default "" .PC_PROCESS}}'
+  PC_TAIL: '{{default "200" .PC_TAIL}}'
+  PC_FOLLOW: '{{default "" .PC_FOLLOW}}'
+  PC_TUI: '{{default "false" .PC_TUI}}'
+
+tasks:
+  default:
+    cmds:
+      - task --list-all
+
+  #############################################################################
+  # Dependencies
+  #############################################################################
+
+  deps:
+    desc: Install process-compose
+    cmds:
+      - go install github.com/f1bonacc1/process-compose@v1.85.0
+      - process-compose version
+
+  #############################################################################
+  # Internal Helper
+  #############################################################################
+
+  # Internal task - all PC commands go through here
+  # Handles log directory creation and TUI setting
+  _pc:
+    internal: true
+    vars:
+      LOG_DIR:
+        sh: dirname "{{.PC_CONFIG}}"
+    env:
+      PC_LOG_FILE: '{{.LOG_DIR}}/pc.log'
+      PC_DISABLE_TUI: '{{if eq .PC_TUI "true"}}0{{else}}1{{end}}'
+    cmds:
+      - mkdir -p "{{.LOG_DIR}}"
+      - '{{.CMD}}'
+
+  #############################################################################
+  # Lifecycle Commands
+  #############################################################################
+
+  up:
+    desc: Start process-compose (detached)
+    cmds:
+      - task: _pc
+        vars:
+          CMD: process-compose up --config '{{.PC_CONFIG}}' --address '{{.PC_ADDRESS}}' --port '{{.PC_PORT}}' --detached
+
+  up:tui:
+    desc: Start process-compose with TUI (foreground)
+    cmds:
+      - task: _pc
+        vars:
+          CMD: process-compose up --config '{{.PC_CONFIG}}' --address '{{.PC_ADDRESS}}' --port '{{.PC_PORT}}'
+          PC_TUI: 'true'
+
+  down:
+    desc: Stop process-compose
+    cmds:
+      - task: _pc
+        vars:
+          CMD: process-compose down --address '{{.PC_ADDRESS}}' --port '{{.PC_PORT}}'
+
+  attach:
+    desc: Attach to process-compose TUI
+    cmds:
+      - task: _pc
+        vars:
+          CMD: process-compose attach --address '{{.PC_ADDRESS}}' --port '{{.PC_PORT}}'
+
+  #############################################################################
+  # Info Commands
+  #############################################################################
+
+  info:
+    desc: Show process-compose info
+    cmds:
+      - task: _pc
+        vars:
+          CMD: process-compose info --address '{{.PC_ADDRESS}}' --port '{{.PC_PORT}}'
+
+  list:
+    desc: List all processes
+    cmds:
+      - task: _pc
+        vars:
+          CMD: process-compose process list --address '{{.PC_ADDRESS}}' --port '{{.PC_PORT}}'
+
+  ports:
+    desc: Show ports for all processes (or PC_PROCESS=name for one)
+    cmds:
+      - task: _pc
+        vars:
+          CMD: process-compose process ports {{.PC_PROCESS}} --address '{{.PC_ADDRESS}}' --port '{{.PC_PORT}}'
+
+  state:
+    desc: Show project state
+    cmds:
+      - task: _pc
+        vars:
+          CMD: process-compose project state --address '{{.PC_ADDRESS}}' --port '{{.PC_PORT}}'
+
+  ready:
+    desc: Check if project is ready (add --wait for blocking)
+    cmds:
+      - task: _pc
+        vars:
+          CMD: process-compose project is-ready --address '{{.PC_ADDRESS}}' --port '{{.PC_PORT}}'
+
+  #############################################################################
+  # Process Control
+  #############################################################################
+
+  restart:
+    desc: Restart a process (PC_PROCESS=name required)
+    preconditions:
+      - sh: '[ -n "{{.PC_PROCESS}}" ]'
+        msg: "Set PC_PROCESS=<name> to restart"
+    cmds:
+      - task: _pc
+        vars:
+          CMD: process-compose process restart {{.PC_PROCESS}} --address '{{.PC_ADDRESS}}' --port '{{.PC_PORT}}'
+
+  stop:
+    desc: Stop a process (PC_PROCESS=name required)
+    preconditions:
+      - sh: '[ -n "{{.PC_PROCESS}}" ]'
+        msg: "Set PC_PROCESS=<name> to stop"
+    cmds:
+      - task: _pc
+        vars:
+          CMD: process-compose process stop {{.PC_PROCESS}} --address '{{.PC_ADDRESS}}' --port '{{.PC_PORT}}'
+
+  start:
+    desc: Start a process (PC_PROCESS=name required)
+    preconditions:
+      - sh: '[ -n "{{.PC_PROCESS}}" ]'
+        msg: "Set PC_PROCESS=<name> to start"
+    cmds:
+      - task: _pc
+        vars:
+          CMD: process-compose process start {{.PC_PROCESS}} --address '{{.PC_ADDRESS}}' --port '{{.PC_PORT}}'
+
+  logs:
+    desc: Show logs for a process (PC_PROCESS=name required, PC_FOLLOW=1 for follow)
+    preconditions:
+      - sh: '[ -n "{{.PC_PROCESS}}" ]'
+        msg: "Set PC_PROCESS=<name> to view logs"
+    cmds:
+      - task: _pc
+        vars:
+          CMD: process-compose process logs {{.PC_PROCESS}} --address '{{.PC_ADDRESS}}' --port '{{.PC_PORT}}' --tail {{.PC_TAIL}}{{if .PC_FOLLOW}} --follow{{end}}
+
+  #############################################################################
+  # Configuration
+  #############################################################################
+
+  update:
+    desc: Update project configuration
+    cmds:
+      - task: _pc
+        vars:
+          CMD: process-compose project update --config '{{.PC_CONFIG}}' --address '{{.PC_ADDRESS}}' --port '{{.PC_PORT}}'
+
+  #############################################################################
+  # Utilities
+  #############################################################################
+
+  clean:logs:
+    desc: Remove process-compose log files
+    vars:
+      LOG_DIR:
+        sh: dirname "{{.PC_CONFIG}}"
+    cmds:
+      - rm -f "{{.LOG_DIR}}/pc.log"
+      - echo "Cleaned pc.log"

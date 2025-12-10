@@ -1,5 +1,8 @@
-# Reference source clones
-.src/
+# Reference source clones (keep Taskfile and docs)
+.src/*
+!.src/Taskfile.yml
+!.src/README.md
+!.src/.gitignore
 
 # Playwright screenshots
 .playwright-mcp/
@@ -20,10 +23,17 @@ examples/nats-node/nats-node
 examples/narun-hello/narun-hello
 examples/conf-only/conf-only
 
-# NATS JetStream data
-**/nats-node/data/
+# Runtime data and logs (volume mounts in production)
+# .data/ - MUST persist (JetStream state, KV stores)
+# .logs/ - SHOULD persist (debugging, auditing)
+# .auth/ - Auth credentials (tokens, nkeys, creds)
+**/.data/
+**/.logs/
+**/.auth/
 
-# Process-compose logs
+# Legacy paths (remove after cleanup)
+**/nats-node/data/
+**/nats-node/logs/
 process-compose.log
 **/process-compose.log
 

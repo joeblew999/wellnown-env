@@ -2,26 +2,43 @@
 #
 # This runs 1 hub + 4 leaf nodes to demonstrate the wellnown-env architecture
 #
-# Run: process-compose up
+# Run: process-compose up  (from examples/nats-node directory)
+#      task mesh            (via Taskfile)
 # Stop: process-compose down
 # Logs: process-compose logs hub (or svc-a, svc-b, etc.)
+#
+# Volume mounts for production:
+#   .data/  - MUST persist (JetStream state, KV stores)
+#   .logs/  - SHOULD persist (debugging, auditing)
+#   .auth/  - Auth credentials (tokens, nkeys, creds)
+#
+# Auth is configured via .auth/ directory (see auth.go):
+#   task auth:token  - Set up token auth (test/CI)
+#   task auth:nkey   - Set up NKey auth (staging)
+#   task auth:jwt    - Set up JWT auth (production)
+#   task auth:clean  - Reset to dev mode (no auth)
+#
+# Note: working_dir is "." because this config is run from the nats-node directory
 
 version: "0.5"
+
+log_location: ./.logs/process-compose.log
 
 processes:
   # Hub node - the central NATS server that leaf nodes connect to
   # Runs in standalone mode (no NATS_HUB set)
+  # Auth is read from .auth/ directory by auth.go
   hub:
-    command: go run main.go
-    working_dir: examples/nats-node
+    command: go run .
+    log_location: ./.logs/hub.log
     environment:
       - NATS_NAME=hub
-      - NATS_PORT=6322
-      - NATS_DATA=./data/hub
+      - NATS_PORT=4222
+      - NATS_DATA=./.data/hub
       - GOWORK=off
     readiness_probe:
       exec:
-        command: "nc -z localhost 6322"
+        command: "nc -z localhost 4222"
       initial_delay_seconds: 2
       period_seconds: 1
       timeout_seconds: 1
@@ -30,13 +47,13 @@ processes:
 
   # Service A - leaf node
   svc-a:
-    command: go run main.go
-    working_dir: examples/nats-node
+    command: go run .
+    log_location: ./.logs/svc-a.log
     environment:
       - NATS_NAME=svc-a
       - NATS_PORT=4223
-      - NATS_HUB=nats://localhost:6322
-      - NATS_DATA=./data/svc-a
+      - NATS_HUB=nats://localhost:4222
+      - NATS_DATA=./.data/svc-a
       - GOWORK=off
     depends_on:
       hub:
@@ -44,13 +61,13 @@ processes:
 
   # Service B - leaf node
   svc-b:
-    command: go run main.go
-    working_dir: examples/nats-node
+    command: go run .
+    log_location: ./.logs/svc-b.log
     environment:
       - NATS_NAME=svc-b
       - NATS_PORT=4224
-      - NATS_HUB=nats://localhost:6322
-      - NATS_DATA=./data/svc-b
+      - NATS_HUB=nats://localhost:4222
+      - NATS_DATA=./.data/svc-b
       - GOWORK=off
     depends_on:
       hub:
@@ -58,13 +75,13 @@ processes:
 
   # Service C - leaf node
   svc-c:
-    command: go run main.go
-    working_dir: examples/nats-node
+    command: go run .
+    log_location: ./.logs/svc-c.log
     environment:
       - NATS_NAME=svc-c
       - NATS_PORT=4225
-      - NATS_HUB=nats://localhost:6322
-      - NATS_DATA=./data/svc-c
+      - NATS_HUB=nats://localhost:4222
+      - NATS_DATA=./.data/svc-c
       - GOWORK=off
     depends_on:
       hub:
@@ -72,13 +89,13 @@ processes:
 
   # Service D - leaf node
   svc-d:
-    command: go run main.go
-    working_dir: examples/nats-node
+    command: go run .
+    log_location: ./.logs/svc-d.log
     environment:
       - NATS_NAME=svc-d
       - NATS_PORT=4226
-      - NATS_HUB=nats://localhost:6322
-      - NATS_DATA=./data/svc-d
+      - NATS_HUB=nats://localhost:4222
+      - NATS_DATA=./.data/svc-d
       - GOWORK=off
     depends_on:
       hub:

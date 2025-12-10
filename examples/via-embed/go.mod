@@ -5,6 +5,8 @@ go 1.25.4
 require (
 	github.com/go-via/via v0.1.4
 	github.com/go-via/via-plugin-picocss v0.1.0
+	github.com/joeblew999/wellnown-env/pkg/env v0.0.0
+	github.com/joeblew999/wellnown-env/pkg/viatheme v0.0.0
 )
 
 require (
@@ -20,3 +22,7 @@ require (
 	golang.org/x/sys v0.38.0 // indirect
 	maragu.dev/gomponents v1.2.0 // indirect
 )
+
+replace github.com/joeblew999/wellnown-env/pkg/env => ../../pkg/env
+
+replace github.com/joeblew999/wellnown-env/pkg/viatheme => ../../pkg/viatheme

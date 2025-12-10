@@ -1,0 +1,221 @@
+version: '3'
+
+# Taskfile: pc-node - Process-Compose as embedded Go library
+#
+# Two modes to run the same pc.yaml config:
+#
+#   EMBEDDED GO (primary):
+#     task run              # Run embedded process-compose in Go
+#     task run:build        # Build the binary
+#
+#   OS BINARY (fallback):
+#     task os:up            # Start via OS process-compose binary
+#     task os:down          # Stop
+#     task os:attach        # Attach to TUI
+#     task os:list          # List processes
+#
+# Both use the same pc.yaml config file.
+
+dotenv: ['../../.env']
+
+includes:
+  pc:
+    taskfile: Taskfile.pc.yml
+    vars:
+      PC_CONFIG: pc.yaml
+      PC_PORT: '{{default "8092" .PC_EMBED_PORT}}'
+
+vars:
+  GOWORK: 'off'
+
+tasks:
+  default:
+    desc: Show available tasks
+    cmds:
+      - task --list-all
+
+  #############################################################################
+  # EMBEDDED GO MODE (Primary)
+  #############################################################################
+
+  run:
+    desc: Run embedded process-compose (Go library)
+    env:
+      GOWORK: '{{.GOWORK}}'
+    cmds:
+      - go run main.go
+
+  run:build:
+    desc: Build the embedded binary
+    env:
+      GOWORK: '{{.GOWORK}}'
+    cmds:
+      - go build -o pc-embed main.go
+      - 'echo Built: ./pc-embed'
+
+  run:exec:
+    desc: Run the built binary
+    cmds:
+      - ./pc-embed
+
+  #############################################################################
+  # OS BINARY MODE (Fallback)
+  #############################################################################
+
+  os:up:
+    desc: Start via OS process-compose binary (detached)
+    cmds:
+      - task: pc:up
+
+  os:up:tui:
+    desc: Start via OS binary with TUI (foreground)
+    cmds:
+      - task: pc:up:tui
+
+  os:down:
+    desc: Stop OS process-compose
+    cmds:
+      - task: pc:down
+
+  os:attach:
+    desc: Attach to OS process-compose TUI
+    cmds:
+      - task: pc:attach
+
+  os:list:
+    desc: List processes (OS binary)
+    cmds:
+      - task: pc:list
+
+  os:logs:
+    desc: Show logs for a process (PC_PROCESS=name required)
+    cmds:
+      - task: pc:logs
+
+  os:state:
+    desc: Show project state (OS binary)
+    cmds:
+      - task: pc:state
+
+  os:deps:
+    desc: Install OS process-compose binary
+    cmds:
+      - task: pc:deps
+
+  #############################################################################
+  # Demo Process Examples (for regression testing)
+  #############################################################################
+
+  ex:start:
+    desc: Start all demo processes (ticker, counter, logger)
+    cmds:
+      - task: pc:start
+        vars: { PC_PROCESS: ticker }
+      - task: pc:start
+        vars: { PC_PROCESS: counter }
+      - task: pc:start
+        vars: { PC_PROCESS: logger }
+
+  ex:stop:
+    desc: Stop all demo processes
+    cmds:
+      - task: pc:stop
+        vars: { PC_PROCESS: ticker }
+      - task: pc:stop
+        vars: { PC_PROCESS: counter }
+      - task: pc:stop
+        vars: { PC_PROCESS: logger }
+
+  ex:restart:
+    desc: Restart all demo processes
+    cmds:
+      - task: pc:restart
+        vars: { PC_PROCESS: ticker }
+      - task: pc:restart
+        vars: { PC_PROCESS: counter }
+      - task: pc:restart
+        vars: { PC_PROCESS: logger }
+
+  ex:ticker:
+    desc: Control ticker demo (action=start|stop|restart)
+    vars:
+      ACTION: '{{default "restart" .ACTION}}'
+    cmds:
+      - task: pc:{{.ACTION}}
+        vars: { PC_PROCESS: ticker }
+
+  ex:counter:
+    desc: Control counter demo (action=start|stop|restart)
+    vars:
+      ACTION: '{{default "restart" .ACTION}}'
+    cmds:
+      - task: pc:{{.ACTION}}
+        vars: { PC_PROCESS: counter }
+
+  ex:logger:
+    desc: Control logger demo (action=start|stop|restart)
+    vars:
+      ACTION: '{{default "restart" .ACTION}}'
+    cmds:
+      - task: pc:{{.ACTION}}
+        vars: { PC_PROCESS: logger }
+
+  #############################################################################
+  # Testing
+  #############################################################################
+
+  test:
+    desc: Run all pcview package tests
+    env:
+      GOWORK: '{{.GOWORK}}'
+    cmds:
+      - go test ./pcview/... -v
+
+  test:short:
+    desc: Run tests (short mode)
+    env:
+      GOWORK: '{{.GOWORK}}'
+    cmds:
+      - go test ./pcview/... -short
+
+  test:cover:
+    desc: Run tests with coverage report
+    env:
+      GOWORK: '{{.GOWORK}}'
+    cmds:
+      - go test ./pcview/... -coverprofile=coverage.out
+      - go tool cover -func=coverage.out
+      - rm -f coverage.out
+
+  test:race:
+    desc: Run tests with race detector
+    env:
+      GOWORK: '{{.GOWORK}}'
+    cmds:
+      - go test ./pcview/... -race
+
+  test:integration:
+    desc: Run gost-dom browser integration tests (Via + SSE)
+    env:
+      GOWORK: '{{.GOWORK}}'
+    cmds:
+      - go test -tags=integration ./pcview/... -v
+
+  test:all:
+    desc: Run all tests (unit + integration)
+    env:
+      GOWORK: '{{.GOWORK}}'
+    cmds:
+      - go test -tags=integration ./pcview/... -v
+
+  #############################################################################
+  # Cleanup
+  #############################################################################
+
+  clean:
+    desc: Clean build artifacts and logs
+    cmds:
+      - rm -f ./pc-embed
+      - rm -f coverage.out
+      - task: pc:clean:logs
+      - 'echo Cleaned build artifacts and logs'

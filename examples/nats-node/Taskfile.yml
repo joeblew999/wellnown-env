@@ -1,0 +1,136 @@
+version: '3'
+
+# Taskfile: nats-node top-level entry point
+#
+# Includes:
+#   - nats-node tasks (hub, leaf, mesh, test, clean)
+#   - nats-cli tasks (kv, pub/sub, streams, etc.)
+#
+# Usage:
+#   task                    # List all tasks
+#   task hub                # Run hub node
+#   task mesh               # Run full mesh
+#   task nats-cli:kv:list   # List KV buckets
+
+includes:
+  nats-node:
+    taskfile: Taskfile.nats-node.yml
+  nats-cli:
+    taskfile: Taskfile.nats-cli.yml
+
+tasks:
+  default:
+    cmds:
+      - task --list-all
+
+  # Shortcuts to nats-node tasks (so you can just do `task hub` instead of `task nats-node:hub`)
+  hub:
+    desc: Run as hub node (standalone mode)
+    cmds:
+      - task: nats-node:hub
+
+  leaf:
+    desc: Run as leaf node (requires hub running)
+    cmds:
+      - task: nats-node:leaf
+
+  mesh:
+    desc: Run full mesh (1 hub + 4 leaves) detached
+    cmds:
+      - task: nats-node:mesh
+
+  mesh:tui:
+    desc: Run full mesh with TUI (foreground)
+    cmds:
+      - task: nats-node:mesh:tui
+
+  mesh:down:
+    desc: Stop the mesh
+    cmds:
+      - task: nats-node:mesh:down
+
+  mesh:attach:
+    desc: Attach to mesh TUI
+    cmds:
+      - task: nats-node:mesh:attach
+
+  mesh:list:
+    desc: List mesh processes
+    cmds:
+      - task: nats-node:mesh:list
+
+  test:
+    desc: Run all NATS tests
+    cmds:
+      - task: nats-node:test
+
+  test:account:
+    desc: Show account info
+    cmds:
+      - task: nats-node:test:account
+
+  test:info:
+    desc: Show server info (requires system account)
+    cmds:
+      - task: nats-node:test:info
+
+  test:ping:
+    desc: Ping the hub (requires system account)
+    cmds:
+      - task: nats-node:test:ping
+
+  test:kv:
+    desc: List KV buckets
+    cmds:
+      - task: nats-node:test:kv
+
+  test:services:
+    desc: List registered services
+    cmds:
+      - task: nats-node:test:services
+
+  test:pubsub:
+    desc: Test pub/sub
+    cmds:
+      - task: nats-node:test:pubsub
+
+  clean:
+    desc: Remove all data directories
+    cmds:
+      - task: nats-node:clean
+
+  clean:logs:
+    desc: Remove log files
+    cmds:
+      - task: nats-node:clean:logs
+
+  clean:all:
+    desc: Remove all data, logs, and auth
+    cmds:
+      - task: nats-node:clean:all
+
+  # Auth lifecycle shortcuts
+  auth:status:
+    desc: Show current auth mode
+    cmds:
+      - task: nats-node:auth:status
+
+  auth:token:
+    desc: Set up token auth (test/CI)
+    cmds:
+      - task: nats-node:auth:token
+
+  auth:nkey:
+    desc: Set up NKey auth (staging)
+    cmds:
+      - task: nats-node:auth:nkey
+
+  auth:jwt:
+    desc: Set up JWT auth (production)
+    cmds:
+      - task: nats-node:auth:jwt
+
+  auth:clean:
+    desc: Reset to dev mode (no auth)
+    cmds:
+      - task: nats-node:auth:clean

@@ -7,6 +7,42 @@
 //   - Standalone (hub): No NATS_HUB env - acts as the central hub
 //   - Leaf node: NATS_HUB set - connects to hub cluster
 //
+// IMPORTANT: Offline-First Architecture
+//
+// When running as a leaf node, your service embeds its own NATS server that:
+//   - Works completely offline when hub is unavailable
+//   - Automatically syncs with hub when connectivity is restored
+//   - Persists data locally (if NATS_DATA is set)
+//
+// This enables building servers that work in disconnected environments
+// (field devices, edge nodes, mobile units) and sync when back online.
+//
+// To embed in your own Go service, import the nats-server package:
+//
+//   import "github.com/nats-io/nats-server/v2/server"
+//
+//   opts := &server.Options{
+//       JetStream: true,
+//       StoreDir:  "./data",
+//       LeafNode: server.LeafNodeOpts{
+//           Remotes: []*server.RemoteLeafOpts{{URLs: hubURLs}},
+//       },
+//   }
+//   ns, _ := server.NewServer(opts)
+//   ns.Start()
+//
+// DESIGN PRINCIPLE: Code Over Configuration
+//
+// Common functionality that every NATS hub/leaf needs is implemented HERE
+// in Go, not in Taskfiles or process-compose.yaml. This keeps config files
+// minimal and behavior consistent. Examples:
+//   - Service self-registration with heartbeat
+//   - KV bucket creation (services_registry)
+//   - Process-compose polling and publishing
+//   - Graceful shutdown with deregistration
+//
+// As patterns emerge, we add them here so all nodes get them automatically.
+//
 // Features:
 //   - Embedded NATS JetStream server
 //   - Service registry KV bucket (services_registry)
@@ -24,7 +60,15 @@
 //   NATS_PORT  - Client port (default: random)
 //   NATS_HUB   - Hub URL for leaf mode (empty = standalone)
 //   NATS_DATA  - Data directory (empty = in-memory)
+//   NATS_AUTH  - Auth mode: none, token, nkey, jwt (default: none)
 //   PC_URL     - Process-compose API URL (default: http://localhost:8181)
+//
+// Auth files in .auth/ directory (see auth.go for details):
+//   .auth/mode         - Current auth mode
+//   .auth/token        - Shared token (token mode)
+//   .auth/user.pub     - NKey public key (nkey mode)
+//   .auth/user.nk      - NKey seed (client-side, nkey mode)
+//   .auth/creds/       - JWT credentials (jwt mode)
 //
 // See process-compose.yaml for orchestrated multi-node setup
 package main
@@ -38,11 +82,11 @@ import (
 	"os"
 	"os/signal"
 	"sort"
-	"strconv"
 	"syscall"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/joeblew999/wellnown-env/pkg/env"
 	"github.com/nats-io/nats-server/v2/server"
 	"github.com/nats-io/nats.go"
 	"github.com/nats-io/nats.go/jetstream"
@@ -73,16 +117,34 @@ func main() {
 }
 
 func run() error {
+	// Resolve any ref+ secrets in environment variables (vals)
+	// This allows secrets to come from Vault, 1Password, files, etc.
+	// For local dev, use ref+file://./secrets/mykey.txt
+	if env.HasSecretRefs() {
+		fmt.Println("Resolving secrets...")
+		if err := env.ResolveEnvSecrets(); err != nil {
+			return fmt.Errorf("resolving secrets: %w", err)
+		}
+		fmt.Printf("  Resolved: %v\n", env.ListSecretRefs())
+	}
+
 	// Configuration from environment
-	name := getEnv("NATS_NAME", "node-"+uuid.New().String()[:8])
-	port := getEnvInt("NATS_PORT", 0) // 0 = random port
+	name := env.GetEnv("NATS_NAME", "node-"+uuid.New().String()[:8])
+	port := env.GetEnvInt("NATS_PORT", 0) // 0 = random port
 	hubURL := os.Getenv("NATS_HUB")   // empty = standalone
 	dataDir := os.Getenv("NATS_DATA") // empty = in-memory
+
+	// Load auth configuration from .auth/ directory
+	authCfg, err := LoadAuthConfig()
+	if err != nil {
+		return fmt.Errorf("loading auth config: %w", err)
+	}
 
 	fmt.Printf("Starting NATS node: %s\n", name)
 	fmt.Printf("  Port: %d (0 = random)\n", port)
 	fmt.Printf("  Hub:  %s (empty = standalone)\n", hubURL)
 	fmt.Printf("  Data: %s (empty = in-memory)\n", dataDir)
+	fmt.Printf("  Auth: %s\n", authCfg.Mode)
 	fmt.Println()
 
 	// Configure NATS server options
@@ -92,9 +154,14 @@ func run() error {
 		JetStream:  true,
 		StoreDir:   dataDir,
 		// Disable logging noise for demo
-		NoLog:  false,
-		Debug:  false,
-		Trace:  false,
+		NoLog: false,
+		Debug: false,
+		Trace: false,
+	}
+
+	// Configure authentication based on lifecycle phase
+	if err := ConfigureAuth(opts, authCfg); err != nil {
+		return fmt.Errorf("configuring auth: %w", err)
 	}
 
 	// If hub URL provided, configure as leaf node
@@ -136,8 +203,12 @@ func run() error {
 	fmt.Printf("  Cluster:    %v\n", ns.ClusterAddr())
 	fmt.Println()
 
-	// Connect as a client to our own embedded server
-	nc, err := nats.Connect(ns.ClientURL())
+	// Connect as a client to our own embedded server with appropriate auth
+	clientOpts, err := GetClientConnectOptions(authCfg)
+	if err != nil {
+		return fmt.Errorf("getting client auth options: %w", err)
+	}
+	nc, err := nats.Connect(ns.ClientURL(), clientOpts...)
 	if err != nil {
 		return fmt.Errorf("connecting to server: %w", err)
 	}
@@ -258,31 +329,6 @@ func run() error {
 	return nil
 }
 
-func getEnv(key, defaultVal string) string {
-	if v := os.Getenv(key); v != "" {
-		return v
-	}
-	return defaultVal
-}
-
-func getEnvInt(key string, defaultVal int) int {
-	if v := os.Getenv(key); v != "" {
-		if i, err := strconv.Atoi(v); err == nil {
-			return i
-		}
-	}
-	return defaultVal
-}
-
-// getProcessComposeURL returns the process-compose API URL
-func getProcessComposeURL() string {
-	if url := os.Getenv("PC_URL"); url != "" {
-		return url
-	}
-	addr := getEnv("PC_ADDRESS", "localhost")
-	port := getEnv("PC_PORT", "8181")
-	return fmt.Sprintf("http://%s:%s", addr, port)
-}
 
 // fetchProcessStates calls process-compose API to get process states
 func fetchProcessStates(pcURL string) ([]ProcessState, error) {
@@ -300,7 +346,7 @@ func fetchProcessStates(pcURL string) ([]ProcessState, error) {
 
 // startProcessComposePoller polls process-compose API and publishes to NATS
 func startProcessComposePoller(nc *nats.Conn) {
-	pcURL := getProcessComposeURL()
+	pcURL := env.GetProcessComposeURL()
 	ticker := time.NewTicker(2 * time.Second)
 	defer ticker.Stop()
 

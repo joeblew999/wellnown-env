@@ -1,0 +1,255 @@
+version: '3'
+
+# Taskfile: Reusable NATS CLI commands
+#
+# Include in your Taskfile:
+#   includes:
+#     nats-cli:
+#       taskfile: tasks/Taskfile.nats-cli.yml
+#
+# Requires NATS_URL to be set (from .env or parent Taskfile)
+
+vars:
+  NATS_URL: '{{default "nats://localhost:4222" .NATS_URL}}'
+
+tasks:
+  default:
+    cmds:
+      - task --list-all
+
+  #############################################################################
+  # Dependencies
+  #############################################################################
+
+  dep:
+    desc: Install NATS CLI and NSC
+    cmds:
+      - go install github.com/nats-io/natscli/nats@latest
+      - go install github.com/nats-io/nsc/v2@latest
+      - nats --version
+      - nsc --version
+
+  dep:nats:
+    desc: Install NATS CLI only
+    cmds:
+      - go install github.com/nats-io/natscli/nats@latest
+      - nats --version
+
+  dep:nsc:
+    desc: Install NSC (NATS Security CLI)
+    cmds:
+      - go install github.com/nats-io/nsc/v2@latest
+      - nsc --version
+
+  #############################################################################
+  # Internal helper
+  #############################################################################
+
+  _cmd:
+    internal: true
+    cmds:
+      - nats -s '{{.NATS_URL}}' {{.CMD}}
+
+  #############################################################################
+  # Server Info
+  #############################################################################
+
+  status:
+    desc: Show NATS server status
+    cmds:
+      - task: _cmd
+        vars: { CMD: 'server info' }
+
+  ping:
+    desc: Ping the NATS server
+    cmds:
+      - task: _cmd
+        vars: { CMD: 'server ping' }
+
+  #############################################################################
+  # KV Operations
+  #############################################################################
+
+  kv:list:
+    desc: List all KV buckets
+    cmds:
+      - task: _cmd
+        vars: { CMD: 'kv ls' }
+
+  kv:keys:
+    desc: 'List keys in a bucket (e.g., task kv:keys -- bucket_name)'
+    cmds:
+      - task: _cmd
+        vars: { CMD: 'kv ls {{.CLI_ARGS}}' }
+
+  kv:get:
+    desc: 'Get a key value (e.g., task kv:get -- bucket key)'
+    cmds:
+      - |
+        args="{{.CLI_ARGS}}"
+        bucket="${args%% *}"
+        key="${args#* }"
+        nats -s '{{.NATS_URL}}' kv get "$bucket" "$key"
+
+  kv:put:
+    desc: 'Put a key value (e.g., task kv:put -- bucket key value)'
+    cmds:
+      - |
+        args="{{.CLI_ARGS}}"
+        bucket="${args%% *}"
+        rest="${args#* }"
+        key="${rest%% *}"
+        value="${rest#* }"
+        nats -s '{{.NATS_URL}}' kv put "$bucket" "$key" "$value"
+
+  kv:del:
+    desc: 'Delete a key (e.g., task kv:del -- bucket key)'
+    cmds:
+      - |
+        args="{{.CLI_ARGS}}"
+        bucket="${args%% *}"
+        key="${args#* }"
+        nats -s '{{.NATS_URL}}' kv del "$bucket" "$key" -f
+
+  kv:watch:
+    desc: 'Watch a bucket for changes (e.g., task kv:watch -- bucket)'
+    cmds:
+      - task: _cmd
+        vars: { CMD: 'kv watch {{.CLI_ARGS}}' }
+
+  kv:info:
+    desc: 'Show bucket info (e.g., task kv:info -- bucket)'
+    cmds:
+      - task: _cmd
+        vars: { CMD: 'kv info {{.CLI_ARGS}}' }
+
+  #############################################################################
+  # Pub/Sub
+  #############################################################################
+
+  pub:
+    desc: 'Publish a message (e.g., task pub -- subject "message")'
+    cmds:
+      - |
+        args="{{.CLI_ARGS}}"
+        subject="${args%% *}"
+        message="${args#* }"
+        echo "$message" | nats -s '{{.NATS_URL}}' pub "$subject"
+
+  sub:
+    desc: 'Subscribe to a subject (e.g., task sub -- "subject.>")'
+    cmds:
+      - task: _cmd
+        vars: { CMD: 'sub "{{.CLI_ARGS}}"' }
+
+  sub:all:
+    desc: Subscribe to all messages
+    cmds:
+      - task: _cmd
+        vars: { CMD: 'sub ">"' }
+
+  req:
+    desc: 'Request/reply (e.g., task req -- subject "message")'
+    cmds:
+      - |
+        args="{{.CLI_ARGS}}"
+        subject="${args%% *}"
+        message="${args#* }"
+        nats -s '{{.NATS_URL}}' req "$subject" "$message" --timeout 3s
+
+  #############################################################################
+  # Streams (JetStream)
+  #############################################################################
+
+  stream:list:
+    desc: List all streams
+    cmds:
+      - task: _cmd
+        vars: { CMD: 'stream ls' }
+
+  stream:info:
+    desc: 'Show stream info (e.g., task stream:info -- stream_name)'
+    cmds:
+      - task: _cmd
+        vars: { CMD: 'stream info {{.CLI_ARGS}}' }
+
+  #############################################################################
+  # Consumers
+  #############################################################################
+
+  consumer:list:
+    desc: 'List consumers for a stream (e.g., task consumer:list -- stream)'
+    cmds:
+      - task: _cmd
+        vars: { CMD: 'consumer ls {{.CLI_ARGS}}' }
+
+  #############################################################################
+  # Account/Context
+  #############################################################################
+
+  account:info:
+    desc: Show account info
+    cmds:
+      - task: _cmd
+        vars: { CMD: 'account info' }
+
+  #############################################################################
+  # NSC (NATS Security CLI)
+  #############################################################################
+
+  nsc:init:
+    desc: Initialize NSC operator and system account
+    cmds:
+      - |
+        if [ ! -d "$HOME/.local/share/nats/nsc" ]; then
+          nsc init --name wellnown
+          nsc add account --name SYS
+          nsc add user --name sys --account SYS
+          echo "NSC initialized. Operator: wellnown, System account: SYS"
+        else
+          echo "NSC already initialized at ~/.local/share/nats/nsc"
+          nsc list operators
+        fi
+
+  nsc:list:
+    desc: List NSC operators and accounts
+    cmds:
+      - nsc list operators
+      - nsc list accounts
+
+  nsc:describe:
+    desc: Describe current operator
+    cmds:
+      - nsc describe operator
+
+  nsc:account:add:
+    desc: 'Add an account (e.g., task nsc:account:add -- myapp)'
+    cmds:
+      - nsc add account --name "{{.CLI_ARGS}}"
+      - echo "Account '{{.CLI_ARGS}}' created"
+
+  nsc:user:add:
+    desc: 'Add a user to account (e.g., task nsc:user:add -- myuser --account myapp)'
+    cmds:
+      - nsc add user {{.CLI_ARGS}}
+
+  nsc:creds:
+    desc: 'Generate credentials file (e.g., task nsc:creds -- myuser --account myapp)'
+    cmds:
+      - nsc generate creds {{.CLI_ARGS}}
+
+  #############################################################################
+  # Monitoring
+  #############################################################################
+
+  mon:
+    desc: Monitor all NATS messages (Ctrl+C to stop)
+    cmds:
+      - task: _cmd
+        vars: { CMD: 'sub ">"' }
+
+  mon:kv:
+    desc: Monitor KV changes
+    cmds:
+      - task: _cmd
+        vars: { CMD: 'sub ''$KV.>''' }

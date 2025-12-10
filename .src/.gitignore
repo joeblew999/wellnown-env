@@ -1,0 +1,7 @@
+# Ignore all cloned reference repos
+# Only keep Taskfile.yml and this .gitignore
+
+*
+!Taskfile.yml
+!.gitignore
+!README.md
