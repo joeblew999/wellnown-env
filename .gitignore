@@ -16,12 +16,12 @@
 examples/via-embed/via-embed
 examples/process-compose-embed/process-compose-embed
 examples/nats-embed/nats-embed
-examples/nats-embedded/nats-embedded
+examples/nats-node/nats-node
 examples/narun-hello/narun-hello
 examples/conf-only/conf-only
 
 # NATS JetStream data
-**/nats-embedded/data/
+**/nats-node/data/
 
 # Process-compose logs
 process-compose.log

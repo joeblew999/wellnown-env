@@ -18,7 +18,7 @@ processes:
   # NATS hub - the central config/registry store
   nats:
     command: go run main.go
-    working_dir: examples/nats-embedded
+    working_dir: examples/nats-node
     environment:
       - NATS_NAME=${NATS_NAME}
       - NATS_PORT=${NATS_PORT}
@@ -109,13 +109,13 @@ processes:
       success_threshold: 1
       failure_threshold: 5
 
-  # Dogfood: run the nats-embedded process-compose as a managed process
-  pc-nats-embedded:
-    command: process-compose up --config examples/nats-embedded/process-compose.yaml --address ${PC_ADDRESS} --port 8383
+  # Dogfood: run the nats-node process-compose as a managed process
+  pc-nats-node:
+    command: process-compose up --config examples/nats-node/process-compose.yaml --address ${PC_ADDRESS} --port 8383
     working_dir: .
     environment:
       - PC_DISABLE_TUI=1
-      - PC_LOG_FILE=examples/nats-embedded/process-compose.log
+      - PC_LOG_FILE=examples/nats-node/process-compose.log
     depends_on:
       nats:
         condition: process_healthy

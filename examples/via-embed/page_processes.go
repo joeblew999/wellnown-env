@@ -48,7 +48,7 @@ func registerProcessesPage(v *via.V) {
 		var lastAction string
 
 		// Helper to create control actions (returns OnClick H)
-		// Note: Process state updates come from NATS hub (nats-embedded polls process-compose)
+		// Note: Process state updates come from NATS hub (nats-node polls process-compose)
 		makeControl := func(action, name, msg string) H {
 			return c.Action(func() {
 				if err := controlProcess(pcURL, action, name); err != nil {

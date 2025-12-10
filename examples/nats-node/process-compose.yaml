@@ -13,7 +13,7 @@ processes:
   # Runs in standalone mode (no NATS_HUB set)
   hub:
     command: go run main.go
-    working_dir: examples/nats-embedded
+    working_dir: examples/nats-node
     environment:
       - NATS_NAME=hub
       - NATS_PORT=6322
@@ -31,7 +31,7 @@ processes:
   # Service A - leaf node
   svc-a:
     command: go run main.go
-    working_dir: examples/nats-embedded
+    working_dir: examples/nats-node
     environment:
       - NATS_NAME=svc-a
       - NATS_PORT=4223
@@ -45,7 +45,7 @@ processes:
   # Service B - leaf node
   svc-b:
     command: go run main.go
-    working_dir: examples/nats-embedded
+    working_dir: examples/nats-node
     environment:
       - NATS_NAME=svc-b
       - NATS_PORT=4224
@@ -59,7 +59,7 @@ processes:
   # Service C - leaf node
   svc-c:
     command: go run main.go
-    working_dir: examples/nats-embedded
+    working_dir: examples/nats-node
     environment:
       - NATS_NAME=svc-c
       - NATS_PORT=4225
@@ -73,7 +73,7 @@ processes:
   # Service D - leaf node
   svc-d:
     command: go run main.go
-    working_dir: examples/nats-embedded
+    working_dir: examples/nats-node
     environment:
       - NATS_NAME=svc-d
       - NATS_PORT=4226

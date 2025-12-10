@@ -40,7 +40,7 @@ func registerServicesPage(v *via.V) {
 			} else if len(services) == 0 {
 				content = Article(
 					P(Text("No services registered yet.")),
-					P(Small(Text("Start the nats-embedded example to see services appear"))),
+					P(Small(Text("Start the nats-node example to see services appear"))),
 				)
 			} else {
 				var rows []H

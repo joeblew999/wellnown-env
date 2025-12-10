@@ -1,20 +1,32 @@
-// Example: Embedded NATS JetStream with standalone/leaf node topology
+// nats-node: Embedded NATS JetStream server (hub or leaf node)
 //
-// This demonstrates the core architecture:
-// - Every binary embeds a NATS server
-// - No NATS_HUB env → standalone mode (dev)
-// - NATS_HUB set → leaf node connecting to hub (prod)
+// This is the NATS infrastructure binary - it MUST NOT go down.
+// Run separately from application services for resilience.
 //
-// Run standalone:
-//   go run main.go
+// Modes:
+//   - Standalone (hub): No NATS_HUB env - acts as the central hub
+//   - Leaf node: NATS_HUB set - connects to hub cluster
 //
-// Run as hub (for other services to connect to):
+// Features:
+//   - Embedded NATS JetStream server
+//   - Service registry KV bucket (services_registry)
+//   - Process-compose polling → publishes to pc.processes.updates
+//   - Automatic heartbeat for service registration
+//
+// Run as hub:
 //   NATS_PORT=4222 NATS_NAME=hub go run main.go
 //
 // Run as leaf node:
 //   NATS_HUB=nats://localhost:4222 NATS_PORT=4223 NATS_NAME=svc-a go run main.go
 //
-// Use process-compose to run multiple instances - see process-compose.yaml
+// Environment:
+//   NATS_NAME  - Node name (default: random UUID)
+//   NATS_PORT  - Client port (default: random)
+//   NATS_HUB   - Hub URL for leaf mode (empty = standalone)
+//   NATS_DATA  - Data directory (empty = in-memory)
+//   PC_URL     - Process-compose API URL (default: http://localhost:8181)
+//
+// See process-compose.yaml for orchestrated multi-node setup
 package main
 
 import (

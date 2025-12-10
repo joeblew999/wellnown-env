@@ -39,6 +39,6 @@ func startBackgroundTickers(ctx context.Context) {
 		}
 	}()
 
-	// Note: Process polling moved to nats-embedded (hub)
+	// Note: Process polling moved to nats-node (hub)
 	// Via receives process updates via NATS subscription (startProcessUpdatesSubscription)
 }
