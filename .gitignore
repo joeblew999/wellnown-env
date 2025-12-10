@@ -14,14 +14,16 @@
 *.so
 *.dylib
 
-# Example binaries (Go builds binary with directory name inside that directory)
+# Command binaries (Go builds binary with directory name inside that directory)
 # These match the exact binary files, not source directories
-examples/via-embed/via-embed
-examples/process-compose-embed/process-compose-embed
-examples/nats-embed/nats-embed
-examples/nats-node/nats-node
+cmd/nats-node/nats-node
+cmd/pc-node/pc-node
+cmd/wellknown-check/wellknown-check
+
+# Example binaries
 examples/narun-hello/narun-hello
 examples/conf-only/conf-only
+examples/vals-only/vals-only
 
 # Runtime data and logs (volume mounts in production)
 # .data/ - MUST persist (JetStream state, KV stores)

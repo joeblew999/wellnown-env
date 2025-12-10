@@ -46,9 +46,20 @@ tasks:
       - task: clone:vals
 
   clone:via:
-    desc: Clone Via web framework
+    desc: Clone Via web framework (fork with gost-dom/SSE fixes)
+    vars:
+      VIA_REPO: https://github.com/joeblew999/via.git
+      VIA_BRANCH: feature/handler-method
+      VIA_COMMIT: fa2c5c0db12b  # Must match go.mod replace directive
     cmds:
-      - git clone https://github.com/go-via/via.git via 2>/dev/null || echo "via already exists"
+      - |
+        if [ ! -d via ]; then
+          git clone -b {{.VIA_BRANCH}} {{.VIA_REPO}} via
+          cd via && git checkout {{.VIA_COMMIT}}
+          echo "Cloned via fork at {{.VIA_COMMIT}} ({{.VIA_BRANCH}})"
+        else
+          echo "via already exists"
+        fi
     status:
       - test -d via
 
@@ -102,9 +113,32 @@ tasks:
       - test -d vals
 
   update:all:
-    desc: Pull latest for all cloned repos
+    desc: Pull latest for all cloned repos (except via which is pinned)
     cmds:
-      - for dir in */; do echo "Updating $dir..."; (cd "$dir" && git pull --ff-only 2>/dev/null || true); done
+      - |
+        for dir in */; do
+          if [ "$dir" = "via/" ]; then
+            echo "Skipping via (pinned to specific commit)"
+          else
+            echo "Updating $dir..."
+            (cd "$dir" && git pull --ff-only 2>/dev/null || true)
+          fi
+        done
+
+  update:via:
+    desc: Update via to a new commit (edit VIA_COMMIT in clone:via first)
+    cmds:
+      - |
+        if [ -d via ]; then
+          cd via
+          git fetch origin
+          git checkout {{.VIA_COMMIT}}
+          echo "Updated via to {{.VIA_COMMIT}}"
+        else
+          echo "via not cloned yet, run: task clone:via"
+        fi
+    vars:
+      VIA_COMMIT: fa2c5c0db12b  # Must match go.mod replace directive
 
   clean:
     desc: Remove all cloned repos

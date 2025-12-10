@@ -5,14 +5,14 @@ dotenv: ['.env']
 
 includes:
   nats-node:
-    taskfile: examples/nats-node/Taskfile.nats-node.yml
-    dir: examples/nats-node
+    taskfile: cmd/nats-node/Taskfile.nats-node.yml
+    dir: cmd/nats-node
   nats-cli:
-    taskfile: examples/nats-node/Taskfile.nats-cli.yml
-    dir: examples/nats-node
+    taskfile: cmd/nats-node/Taskfile.nats-cli.yml
+    dir: cmd/nats-node
   pc:
-    taskfile: examples/pc-node/Taskfile.pc.yml
-    dir: examples/pc-node
+    taskfile: cmd/pc-node/Taskfile.pc.yml
+    dir: cmd/pc-node
 
 vars:
   # Port to free (for port:free task)

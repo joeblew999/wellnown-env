@@ -1,18 +1,10 @@
-module github.com/joeblew999/wellnown-env/pkg/env
+module github.com/joeblew999/wellnown-env/cmd/nats-node
 
 go 1.25.4
 
 require (
-	github.com/ardanlabs/conf/v3 v3.10.0
-	github.com/go-via/via v0.1.4
-	github.com/google/uuid v1.6.0
-	github.com/gost-dom/browser v0.10.3
-	github.com/helmfile/vals v0.37.8
-	github.com/nats-io/jwt/v2 v2.8.0
-	github.com/nats-io/nats-server/v2 v2.12.2
+	github.com/joeblew999/wellnown-env/pkg/env v0.0.0
 	github.com/nats-io/nats.go v1.47.0
-	github.com/nats-io/nkeys v0.4.12
-	github.com/stretchr/testify v1.11.1
 )
 
 require (
@@ -58,6 +50,7 @@ require (
 	github.com/antchfx/jsonquery v1.3.6 // indirect
 	github.com/antchfx/xpath v1.3.2 // indirect
 	github.com/antithesishq/antithesis-sdk-go v0.4.3-default-no-op // indirect
+	github.com/ardanlabs/conf/v3 v3.10.0 // indirect
 	github.com/asaskevich/govalidator v0.0.0-20230301143203-a9d515a09cc2 // indirect
 	github.com/atotto/clipboard v0.1.4 // indirect
 	github.com/aws/aws-sdk-go v1.55.5 // indirect
@@ -116,6 +109,7 @@ require (
 	github.com/go-openapi/strfmt v0.23.0 // indirect
 	github.com/go-openapi/swag v0.23.0 // indirect
 	github.com/go-openapi/validate v0.24.0 // indirect
+	github.com/go-via/via v0.1.4 // indirect
 	github.com/gobwas/glob v0.2.3 // indirect
 	github.com/godbus/dbus/v5 v5.1.0 // indirect
 	github.com/gogo/protobuf v1.3.2 // indirect
@@ -130,10 +124,9 @@ require (
 	github.com/google/go-tpm v0.9.6 // indirect
 	github.com/google/gofuzz v1.2.0 // indirect
 	github.com/google/s2a-go v0.1.8 // indirect
+	github.com/google/uuid v1.6.0 // indirect
 	github.com/googleapis/enterprise-certificate-proxy v0.3.4 // indirect
 	github.com/googleapis/gax-go/v2 v2.13.0 // indirect
-	github.com/gost-dom/css v0.1.0 // indirect
-	github.com/gost-dom/v8go v0.0.0-20250712111039-fd213ddc42d7 // indirect
 	github.com/goware/prefixer v0.0.0-20160118172347-395022866408 // indirect
 	github.com/hashicorp/errwrap v1.1.0 // indirect
 	github.com/hashicorp/go-cleanhttp v0.5.2 // indirect
@@ -151,6 +144,7 @@ require (
 	github.com/hashicorp/hcp-sdk-go v0.119.0 // indirect
 	github.com/hashicorp/jsonapi v1.3.1 // indirect
 	github.com/hashicorp/vault/api v1.15.0 // indirect
+	github.com/helmfile/vals v0.37.8 // indirect
 	github.com/imdario/mergo v0.3.12 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/itchyny/gojq v0.12.16 // indirect
@@ -174,13 +168,15 @@ require (
 	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd // indirect
 	github.com/modern-go/reflect2 v1.0.2 // indirect
 	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect
+	github.com/nats-io/jwt/v2 v2.8.0 // indirect
+	github.com/nats-io/nats-server/v2 v2.12.2 // indirect
+	github.com/nats-io/nkeys v0.4.12 // indirect
 	github.com/nats-io/nuid v1.0.1 // indirect
 	github.com/oklog/ulid v1.3.1 // indirect
 	github.com/opentracing/opentracing-go v1.2.0 // indirect
 	github.com/pkg/browser v0.0.0-20240102092130-5ac0b6a4141c // indirect
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/planetscale/vtprotobuf v0.6.1-0.20240319094008-0393e58bdf10 // indirect
-	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
 	github.com/russross/blackfriday/v2 v2.1.0 // indirect
 	github.com/ryanuber/go-glob v1.0.0 // indirect
 	github.com/sirupsen/logrus v1.9.3 // indirect
@@ -192,12 +188,6 @@ require (
 	github.com/tidwall/gjson v1.18.0 // indirect
 	github.com/tidwall/match v1.1.1 // indirect
 	github.com/tidwall/pretty v1.2.0 // indirect
-	github.com/tommie/v8go/deps/android_amd64 v0.0.0-20251007175045-97bcf8e7d6ed // indirect
-	github.com/tommie/v8go/deps/android_arm64 v0.0.0-20251007175045-97bcf8e7d6ed // indirect
-	github.com/tommie/v8go/deps/darwin_amd64 v0.0.0-20251007175045-97bcf8e7d6ed // indirect
-	github.com/tommie/v8go/deps/darwin_arm64 v0.0.0-20251007175045-97bcf8e7d6ed // indirect
-	github.com/tommie/v8go/deps/linux_amd64 v0.0.0-20251007175045-97bcf8e7d6ed // indirect
-	github.com/tommie/v8go/deps/linux_arm64 v0.0.0-20251007175045-97bcf8e7d6ed // indirect
 	github.com/uber/jaeger-client-go v2.30.0+incompatible // indirect
 	github.com/uber/jaeger-lib v2.4.1+incompatible // indirect
 	github.com/urfave/cli v1.22.15 // indirect
@@ -247,5 +237,7 @@ require (
 	sigs.k8s.io/structured-merge-diff/v4 v4.4.1 // indirect
 	sigs.k8s.io/yaml v1.4.0 // indirect
 )
+
+replace github.com/joeblew999/wellnown-env/pkg/env => ../../pkg/env
 
 replace github.com/go-via/via => github.com/joeblew999/via v0.0.0-20251210084544-fa2c5c0db12b
