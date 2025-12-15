@@ -25,6 +25,7 @@ tasks:
       - echo "  narun              - NATS micro services"
       - echo "  conf               - Ardanlabs config"
       - echo "  vals               - Secret store values"
+      - echo "  infisical-cli      - Infisical secrets CLI"
       - echo ""
       - echo "Commands:"
       - echo "  task clone:all     - Clone all repos"
@@ -44,6 +45,7 @@ tasks:
       - task: clone:narun
       - task: clone:conf
       - task: clone:vals
+      - task: clone:infisical-cli
 
   clone:via:
     desc: Clone Via web framework (fork with gost-dom/SSE fixes)
@@ -112,6 +114,13 @@ tasks:
     status:
       - test -d vals
 
+  clone:infisical-cli:
+    desc: Clone Infisical CLI
+    cmds:
+      - git clone https://github.com/Infisical/cli.git infisical-cli 2>/dev/null || echo "infisical-cli already exists"
+    status:
+      - test -d infisical-cli
+
   update:all:
     desc: Pull latest for all cloned repos (except via which is pinned)
     cmds:
@@ -144,5 +153,5 @@ tasks:
     desc: Remove all cloned repos
     prompt: This will delete all cloned reference repos. Continue?
     cmds:
-      - rm -rf via via-plugin-picocss browser process-compose nats-server narun conf vals
+      - rm -rf via via-plugin-picocss browser process-compose nats-server narun conf vals infisical-cli
       - echo "All reference repos removed"

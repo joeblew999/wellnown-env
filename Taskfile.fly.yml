@@ -1,0 +1,223 @@
+version: '3'
+
+vars:
+  FLY_BIN: '{{default "fly" .FLY_BIN}}'
+  # App/region/image
+  FLY_APP: '{{default "infisical-selfhost" .FLY_APP}}'
+  FLY_REGION: '{{default "ams" .FLY_REGION}}'
+  FLY_IMAGE: '{{default "infisical/infisical:latest-postgres" .FLY_IMAGE}}'
+  FLY_CONFIG: '{{default "fly.infisical.toml" .FLY_CONFIG}}'
+  FLY_ORG: '{{.FLY_ORG}}'
+
+  # DB defaults
+  FLY_DB_APP: '{{default (printf "%s-pg" .FLY_APP) .FLY_DB_APP}}'
+  FLY_DB_REGION: '{{default .FLY_REGION .FLY_DB_REGION}}'
+
+  # Redis (Upstash) defaults
+  FLY_REDIS_NAME: '{{default "infisical-selfhost-redis" .FLY_REDIS_NAME}}'
+
+  # Required secrets for Infisical
+  INFISICAL_ENCRYPTION_KEY: '{{.INFISICAL_ENCRYPTION_KEY}}'
+  INFISICAL_JWT_SECRET: '{{.INFISICAL_JWT_SECRET}}'
+  INFISICAL_POSTGRES_URL: '{{.INFISICAL_POSTGRES_URL}}'
+  INFISICAL_REDIS_URL: '{{.INFISICAL_REDIS_URL}}'
+  INFISICAL_SITE_URL: '{{default (printf "https://%s.fly.dev" .FLY_APP) .INFISICAL_SITE_URL}}'
+  INFISICAL_API_URL: '{{default (printf "https://%s.fly.dev" .FLY_APP) .INFISICAL_API_URL}}'
+
+tasks:
+  default:
+    desc: Show Fly tasks
+    cmds:
+      - task --list-all
+
+  auth:login:
+    desc: Log in to Fly (opens browser/device flow)
+    cmds:
+      - '{{.FLY_BIN}} auth login'
+
+  check:
+    desc: Show config and ensure flyctl is available
+    cmds:
+      - |
+        echo "App:    {{.FLY_APP}}"
+        echo "Region: {{.FLY_REGION}}"
+        echo "Image:  {{.FLY_IMAGE}}"
+        echo "Config: {{.FLY_CONFIG}}"
+        if ! command -v {{.FLY_BIN}} >/dev/null 2>&1; then
+          echo "flyctl not found. Install from https://fly.io/docs/flyctl/install/"; exit 1;
+        fi
+        {{.FLY_BIN}} version
+
+  app:create:
+    desc: Create the Fly app (no deploy)
+    cmds:
+      - '{{.FLY_BIN}} apps create {{.FLY_APP}} || true'
+
+  db:create:
+    desc: Create a Fly Postgres (optional; skip if you already have one)
+    cmds:
+      - '{{.FLY_BIN}} postgres create --name {{.FLY_DB_APP}} --region {{.FLY_DB_REGION}} --initial-cluster-size 1 --vm-size shared-cpu-1x --volume-size 10 || true'
+
+  secrets:set:
+    desc: Set required secrets (needs env vars set in your shell)
+    env:
+      INFISICAL_ENCRYPTION_KEY: '{{.INFISICAL_ENCRYPTION_KEY}}'
+      INFISICAL_JWT_SECRET: '{{.INFISICAL_JWT_SECRET}}'
+      INFISICAL_POSTGRES_URL: '{{.INFISICAL_POSTGRES_URL}}'
+      INFISICAL_REDIS_URL: '{{.INFISICAL_REDIS_URL}}'
+      INFISICAL_SITE_URL: '{{.INFISICAL_SITE_URL}}'
+      INFISICAL_API_URL: '{{.INFISICAL_API_URL}}'
+    cmds:
+      - |
+        set -e
+        if [ -f ".env.fly.local" ]; then
+          set -a
+          . ./.env.fly.local
+          set +a
+        fi
+        missing=0
+        for v in INFISICAL_ENCRYPTION_KEY INFISICAL_JWT_SECRET INFISICAL_POSTGRES_URL; do
+          if [ -z "${!v}" ]; then echo "Missing required env: $v"; missing=1; fi
+        done
+        if [ "$missing" -ne 0 ]; then exit 1; fi
+        {{.FLY_BIN}} secrets set \
+          ENCRYPTION_KEY="$INFISICAL_ENCRYPTION_KEY" \
+          AUTH_SECRET="$INFISICAL_JWT_SECRET" \
+          DB_CONNECTION_URI="$INFISICAL_POSTGRES_URL" \
+          SITE_URL="{{.INFISICAL_SITE_URL}}" \
+          INFISICAL_SITE_URL="{{.INFISICAL_SITE_URL}}" \
+          INFISICAL_API_URL="{{.INFISICAL_API_URL}}" \
+          ${INFISICAL_REDIS_URL:+REDIS_URL="$INFISICAL_REDIS_URL"} \
+          --app {{.FLY_APP}}
+
+  deploy:
+    desc: Deploy Infisical to Fly using fly.infisical.toml
+    cmds:
+      - '{{.FLY_BIN}} deploy --config {{.FLY_CONFIG}} --image {{.FLY_IMAGE}} --app {{.FLY_APP}}'
+
+  status:
+    desc: Show Fly app status
+    cmds:
+      - '{{.FLY_BIN}} status --app {{.FLY_APP}}'
+
+  open:
+    desc: Open the app in browser
+    cmds:
+      - '{{.FLY_BIN}} open --app {{.FLY_APP}}'
+
+  logs:
+    desc: Stream logs
+    cmds:
+      - '{{.FLY_BIN}} logs --app {{.FLY_APP}}'
+
+  urls:
+    desc: Echo helpful URLs
+    cmds:
+      - |
+        echo "App URL:    https://{{.FLY_APP}}.fly.dev"
+        echo "API URL:    {{.INFISICAL_API_URL}}"
+        echo "Site URL:   {{.INFISICAL_SITE_URL}}"
+        echo "Fly Dash:   https://fly.io/apps/{{.FLY_APP}}"
+        echo "Fly PG (if created): https://fly.io/apps/{{.FLY_DB_APP}}"
+        echo "Fly Redis (if created): https://fly.io/redis/{{.FLY_REDIS_NAME}}"
+
+  machines:list:
+    desc: List machines
+    cmds:
+      - '{{.FLY_BIN}} machines list -a {{.FLY_APP}}'
+
+  machines:destroy:
+    desc: Destroy all machines for the app (force)
+    cmds:
+      - |
+        set -e
+        ids=$({{.FLY_BIN}} machines list -q -a {{.FLY_APP}})
+        if [ -n "$ids" ]; then
+          for id in $ids; do
+            echo "Destroying machine $id..."
+            {{.FLY_BIN}} machines destroy "$id" -a {{.FLY_APP}} --force || true
+          done
+        else
+          echo "No machines to destroy for {{.FLY_APP}}"
+        fi
+
+  machines:destroy:retry:
+    desc: Destroy machines with retries for stuck leases
+    cmds:
+      - |
+        set -e
+        for attempt in 1 2 3 4 5; do
+          ids=$({{.FLY_BIN}} machines list -q -a {{.FLY_APP}})
+          if [ -z "$ids" ]; then
+            echo "No machines to destroy for {{.FLY_APP}}"
+            exit 0
+          fi
+          ok=0
+          for id in $ids; do
+            echo "Attempt $attempt destroying $id..."
+            if {{.FLY_BIN}} machines destroy "$id" -a {{.FLY_APP}} --force; then
+              ok=1
+            else
+              echo "Destroy failed (likely lease), sleeping 10s"
+              sleep 10
+            fi
+          done
+          if [ "$ok" -eq 1 ]; then
+            # verify cleared
+            remaining=$({{.FLY_BIN}} machines list -q -a {{.FLY_APP}})
+            [ -z "$remaining" ] && exit 0
+          fi
+        done
+        echo "Machines still present; try again later."
+        exit 1
+
+  app:destroy:
+    desc: Destroy the Fly app (after machines are removed)
+    cmds:
+      - '{{.FLY_BIN}} apps destroy {{.FLY_APP}} --yes'
+
+  db:destroy:
+    desc: Destroy Fly Postgres app (data loss!)
+    cmds:
+      - '{{.FLY_BIN}} apps destroy {{.FLY_DB_APP}} --yes'
+
+  redis:destroy:
+    desc: Destroy Upstash Redis (data loss!)
+    cmds:
+      - '{{.FLY_BIN}} redis destroy {{.FLY_REDIS_NAME}} --yes'
+
+  destroy:all:
+    desc: Destroy machines, app, PG, and Redis (danger!)
+    cmds:
+      - task: machines:destroy:retry
+      - task: app:destroy
+      - task: db:destroy
+      - task: redis:destroy
+
+  init:secrets:
+    desc: 'Generate local secrets file (.env.fly.local) with ENCRYPTION_KEY/JWT_SECRET placeholders for Fly deploy'
+    cmds:
+      - |
+        set -e
+        out=".env.fly.local"
+        if [ -f "$out" ]; then
+          echo "$out already exists; refusing to overwrite. Remove it if you want to regenerate."
+          exit 1
+        fi
+        if ! command -v openssl >/dev/null 2>&1; then
+          echo "openssl not found; install it first."; exit 1;
+        fi
+        ENC=$(openssl rand -base64 32)
+        JWT=$(openssl rand -base64 32)
+        {
+          echo "# Generated by task infisical-fly:init:secrets"
+          echo "# Fill POSTGRES_URL (from Fly PG or your own) and optional REDIS_URL, then:"
+          echo "#   export \\$(grep -v '^#' $out | xargs)"
+          echo "INFISICAL_ENCRYPTION_KEY=$ENC"
+          echo "INFISICAL_JWT_SECRET=$JWT"
+          echo "INFISICAL_POSTGRES_URL="
+          echo "INFISICAL_REDIS_URL="
+          echo "INFISICAL_SITE_URL={{.INFISICAL_SITE_URL}}"
+          echo "INFISICAL_API_URL={{.INFISICAL_API_URL}}"
+        } > "$out"
+        echo "Wrote $out"

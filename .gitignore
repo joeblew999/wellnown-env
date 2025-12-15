@@ -1,3 +1,7 @@
+# Referance binaries of the .src
+.bin 
+
+
 # Reference source clones (keep Taskfile and docs)
 .src/*
 !.src/Taskfile.yml
@@ -54,3 +58,5 @@ process-compose.log
 # OS
 .DS_Store
 Thumbs.db
+
+.env.fly.local

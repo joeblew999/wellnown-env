@@ -1,0 +1,47 @@
+# Fly.io deploy config for self-hosted Infisical
+# Required secrets (set via `fly secrets set ...` before deploy):
+#   ENCRYPTION_KEY (32-byte base64)
+#   JWT_SECRET (random string)
+#   POSTGRES_URL (e.g., postgres://user:pass@host:port/db?sslmode=disable)
+# Optional:
+#   REDIS_URL
+#   INFISICAL_SITE_URL (e.g., https://<app>.fly.dev)
+#   INFISICAL_API_URL (usually same as site URL, with /api if needed)
+
+app = "infisical-selfhost"
+primary_region = "ams"
+kill_signal = "SIGINT"
+kill_timeout = 5
+
+[build]
+  image = "infisical/infisical:latest-postgres"
+
+[env]
+  PORT = "8080"
+  NODE_ENV = "production"
+
+[processes]
+  app = "sh -c 'cd /backend && HOST=${HOST:-0.0.0.0} PORT=${PORT:-8080} node dist/main.mjs'"
+
+[[services]]
+  protocol = "tcp"
+  internal_port = 8080
+  processes = ["app"]
+
+  [services.concurrency]
+    type = "connections"
+    hard_limit = 50
+    soft_limit = 40
+
+  [[services.ports]]
+    handlers = ["http"]
+    port = 80
+
+  [[services.ports]]
+    handlers = ["tls", "http"]
+    port = 443
+
+  [[services.tcp_checks]]
+    interval = "15s"
+    timeout = "2s"
+    grace_period = "30s"

@@ -1,0 +1,248 @@
+version: '3'
+
+vars:
+  # Binary and source
+  INFISICAL_BIN: '{{default "./.bin/infisical" .INFISICAL_BIN}}'
+  INFISICAL_SRC: '{{default ".src/infisical-cli" .INFISICAL_SRC}}'
+
+  # Endpoints/hosts
+  INFISICAL_DOMAIN: '{{default "https://eu.infisical.com/api" .INFISICAL_DOMAIN}}'
+  INFISICAL_HOST: '{{default "https://eu.infisical.com" .INFISICAL_HOST}}'
+
+  # Identity / org / project
+  INFISICAL_EMAIL: '{{default "gedw99@gmail.com" .INFISICAL_EMAIL}}'
+  INFISICAL_ORG: '{{default "09cecbc5-9eea-4a71-92cc-c979af917909" .INFISICAL_ORG}}'
+  INFISICAL_PROJECT_SLUG: '{{default "secret-management" .INFISICAL_PROJECT_SLUG}}'
+  INFISICAL_PROJECT: '{{default "132fe3f3-a62a-43ac-ae7f-8e74637c4f07" .INFISICAL_PROJECT}}'
+  INFISICAL_MACHINE_ID: '{{default "877e81df-fbd0-4145-bc7b-5a3a3c076c07" .INFISICAL_MACHINE_ID}}'
+
+  # Defaults for env/path
+  INFISICAL_ENV: '{{default "dev" .INFISICAL_ENV}}'
+  INFISICAL_PATH: '{{default "/" .INFISICAL_PATH}}'
+
+  # Optional machine identity token
+  INFISICAL_TOKEN: '{{.INFISICAL_TOKEN}}'
+
+  # Helper flags derived from defaults
+  ENV_FLAG: '{{if .INFISICAL_ENV}}--env "{{.INFISICAL_ENV}}"{{end}}'
+  PATH_FLAG: '{{if .INFISICAL_PATH}}--path "{{.INFISICAL_PATH}}"{{end}}'
+  PROJECT_FLAG: '{{if .INFISICAL_PROJECT}}--projectId "{{.INFISICAL_PROJECT}}"{{end}}'
+  TOKEN_FLAG: '{{if .INFISICAL_TOKEN}}--token "{{.INFISICAL_TOKEN}}"{{end}}'
+
+  # Service token creation defaults
+  INFISICAL_TOKEN_NAME: '{{default "Service token generated via Taskfile" .INFISICAL_TOKEN_NAME}}'
+  INFISICAL_TOKEN_ACCESS: '{{default "read" .INFISICAL_TOKEN_ACCESS}}'
+  INFISICAL_TOKEN_EXPIRY: '{{.INFISICAL_TOKEN_EXPIRY}}' # seconds; leave empty to use CLI default (1 day); set 0 for no expiry
+
+  # Browser-opening behavior for guide:urls
+  INFISICAL_OPEN: '{{default "true" .INFISICAL_OPEN}}'
+
+tasks:
+  default:
+    desc: Show Infisical CLI tasks
+    cmds:
+      - task --list-all
+
+  build:
+    desc: Build Infisical CLI into ./.bin/infisical
+    env:
+      INFISICAL_API_URL: '{{.INFISICAL_DOMAIN}}'
+    cmds:
+      - |
+        set -e
+        mkdir -p "$(dirname "{{.INFISICAL_BIN}}")"
+        cd "{{.INFISICAL_SRC}}"
+        GOWORK=off go build -o "../../{{.INFISICAL_BIN}}" .
+        echo "Built {{.INFISICAL_BIN}}"
+      - '{{.INFISICAL_BIN}} --version'
+
+  version:
+    desc: Show Infisical CLI version
+    env:
+      INFISICAL_API_URL: '{{.INFISICAL_DOMAIN}}'
+    cmds:
+      - '{{.INFISICAL_BIN}} --version'
+
+  login:
+    desc: 'Login (pass flags like --domain, --method, --email, --secret-key)'
+    env:
+      INFISICAL_API_URL: '{{.INFISICAL_DOMAIN}}'
+    cmds:
+      - '{{.INFISICAL_BIN}} login {{.CLI_ARGS}}'
+
+  login:user:
+    desc: 'Login (user/password) using defaults: email/org; securely prompts for password unless provided'
+    env:
+      INFISICAL_API_URL: '{{.INFISICAL_DOMAIN}}'
+    cmds:
+      - |
+        set -e
+        if echo "{{.CLI_ARGS}}" | grep -q -- "--password"; then
+          {{.INFISICAL_BIN}} login --method user --email "{{.INFISICAL_EMAIL}}" --organization-id "{{.INFISICAL_ORG}}" {{.CLI_ARGS}}
+        else
+          read -s -p "Infisical password: " INFISICAL_PWD
+          echo
+          {{.INFISICAL_BIN}} login --method user --email "{{.INFISICAL_EMAIL}}" --organization-id "{{.INFISICAL_ORG}}" --password "$INFISICAL_PWD" {{.CLI_ARGS}}
+        fi
+
+  service-token:create:
+    desc: 'Create a machine identity service token (uses defaults for project/env/path; add CLI_ARGS to override)'
+    env:
+      INFISICAL_API_URL: '{{.INFISICAL_DOMAIN}}'
+    cmds:
+      - |
+        set -e
+        scope="{{.INFISICAL_ENV}}:{{.INFISICAL_PATH}}"
+        if [ -z "$scope" ] || [ "$scope" = ":" ]; then
+          echo "Scope is empty; set INFISICAL_ENV/INFISICAL_PATH or pass --scope env:/path"; exit 1;
+        fi
+        expiry_flag=""
+        if [ -n "{{.INFISICAL_TOKEN_EXPIRY}}" ]; then
+          expiry_flag="--expiry-seconds {{.INFISICAL_TOKEN_EXPIRY}}"
+        fi
+        {{.INFISICAL_BIN}} service-token create \
+          --projectId "{{.INFISICAL_PROJECT}}" \
+          --scope "$scope" \
+          --access-level "{{.INFISICAL_TOKEN_ACCESS}}" \
+          --name "{{.INFISICAL_TOKEN_NAME}}" \
+          $expiry_flag \
+          {{.CLI_ARGS}}
+
+  init:
+    desc: 'Link this project (e.g., task infisical:init -- --projectId <id> --path /)'
+    env:
+      INFISICAL_API_URL: '{{.INFISICAL_DOMAIN}}'
+    cmds:
+      - '{{.INFISICAL_BIN}} init {{.PROJECT_FLAG}} {{.PATH_FLAG}} {{.CLI_ARGS}}'
+
+  run:
+    desc: 'Inject secrets and run a command (e.g., task infisical:run -- --env dev -- npm run dev)'
+    env:
+      INFISICAL_API_URL: '{{.INFISICAL_DOMAIN}}'
+    cmds:
+      - '{{.INFISICAL_BIN}} run {{.ENV_FLAG}} {{.TOKEN_FLAG}} {{.CLI_ARGS}}'
+
+  export:
+    desc: 'Export secrets (e.g., task infisical:export -- --env dev --format dotenv --output-file .env.shared)'
+    env:
+      INFISICAL_API_URL: '{{.INFISICAL_DOMAIN}}'
+    cmds:
+      - '{{.INFISICAL_BIN}} export {{.ENV_FLAG}} {{.PATH_FLAG}} {{.TOKEN_FLAG}} {{.CLI_ARGS}}'
+
+  secrets:get:
+    desc: 'Get secrets (e.g., task infisical:secrets:get -- --env dev --path / DB_PASSWORD)'
+    env:
+      INFISICAL_API_URL: '{{.INFISICAL_DOMAIN}}'
+    cmds:
+      - '{{.INFISICAL_BIN}} secrets get {{.ENV_FLAG}} {{.PATH_FLAG}} {{.TOKEN_FLAG}} {{.CLI_ARGS}}'
+
+  secrets:set:
+    desc: 'Set secrets (e.g., task infisical:secrets:set -- --env dev API_KEY=myvalue)'
+    env:
+      INFISICAL_API_URL: '{{.INFISICAL_DOMAIN}}'
+    cmds:
+      - '{{.INFISICAL_BIN}} secrets set {{.ENV_FLAG}} {{.PATH_FLAG}} {{.TOKEN_FLAG}} {{.CLI_ARGS}}'
+
+  scan:
+    desc: 'Scan for leaked secrets (e.g., task infisical:scan -- --path ./)'
+    env:
+      INFISICAL_API_URL: '{{.INFISICAL_DOMAIN}}'
+    cmds:
+      - '{{.INFISICAL_BIN}} scan {{.TOKEN_FLAG}} {{.CLI_ARGS}}'
+
+  reset:
+    desc: Remove local Infisical data from this machine
+    env:
+      INFISICAL_API_URL: '{{.INFISICAL_DOMAIN}}'
+    cmds:
+      - '{{.INFISICAL_BIN}} reset'
+
+  cmd:
+    desc: 'Run any Infisical CLI command (e.g., task infisical:cmd -- secrets list)'
+    env:
+      INFISICAL_API_URL: '{{.INFISICAL_DOMAIN}}'
+    cmds:
+      - '{{.INFISICAL_BIN}} {{.CLI_ARGS}}'
+
+  guide:check:
+    desc: 'Show current defaults (domain, org, project, env/path, token presence)'
+    cmds:
+      - |
+        echo "Domain: {{.INFISICAL_DOMAIN}}"
+        echo "Host:   {{.INFISICAL_HOST}}"
+        echo "Org:    {{.INFISICAL_ORG}}"
+        echo "Proj:   {{.INFISICAL_PROJECT_SLUG}} / {{.INFISICAL_PROJECT}}"
+        echo "Env:    {{.INFISICAL_ENV}}"
+        echo "Path:   {{.INFISICAL_PATH}}"
+        echo "Machine ID: {{.INFISICAL_MACHINE_ID}}"
+        if [ -n "{{.INFISICAL_TOKEN}}" ]; then
+          echo "Token: set (INFISICAL_TOKEN)";
+        else
+          echo "Token: NOT set (export INFISICAL_TOKEN=sst_...)";
+        fi
+
+  guide:urls:
+    desc: 'Print and optionally open key Infisical URLs (org, project, identities)'
+    cmds:
+      - |
+        org_url="{{.INFISICAL_HOST}}/organizations/{{.INFISICAL_ORG}}"
+        project_url="$org_url/projects/{{.INFISICAL_PROJECT_SLUG}}/{{.INFISICAL_PROJECT}}/overview"
+        identities_url="$org_url/projects/{{.INFISICAL_PROJECT_SLUG}}/{{.INFISICAL_PROJECT}}/access-management?selectedTab=identities"
+        echo "Org:        $org_url"
+        echo "Project:    $project_url"
+        echo "Identities: $identities_url"
+        if [ "{{.INFISICAL_OPEN}}" = "true" ]; then
+          opener=""
+          if command -v open >/dev/null 2>&1; then opener="open"; elif command -v xdg-open >/dev/null 2>&1; then opener="xdg-open"; fi
+          if [ -n "$opener" ]; then
+            echo "Opening in browser (set INFISICAL_OPEN=false to skip)..."
+            $opener "$org_url"
+            $opener "$project_url"
+            $opener "$identities_url"
+          else
+            echo "No browser opener found (set INFISICAL_OPEN=false to skip open attempts)."
+          fi
+        else
+          echo "INFISICAL_OPEN=false; not opening URLs."
+        fi
+
+  guide:newbie:
+    desc: 'Step-by-step guide (echoes the sequence to get started)'
+    cmds:
+      - |
+        printf '%s\n' \
+          "1) Build CLI (once, if not built):" \
+          "   task infisical:build" \
+          "" \
+          "2) Get a machine identity service token (UI):" \
+          "   - Run: task infisical:guide:urls   # opens org/project/identities pages" \
+          "   - In the UI, create/issue a service token for machine ID {{.INFISICAL_MACHINE_ID}} scoped to env \"{{.INFISICAL_ENV}}\" and path \"{{.INFISICAL_PATH}}\"." \
+          "   - Copy the token (sst_...). Export it: export INFISICAL_TOKEN=\"sst_...\"" \
+          "" \
+          "3) Verify defaults and token presence:" \
+          "   task infisical:guide:check" \
+          "" \
+          "4) (Optional) Create a service token via CLI instead of UI (requires existing login/token):" \
+          "   task infisical:service-token:create -- --access-level read --scope {{.INFISICAL_ENV}}:{{.INFISICAL_PATH}} --token-only" \
+          "" \
+          "5) Link project (defaults: project {{.INFISICAL_PROJECT}}, env {{.INFISICAL_ENV}}, path {{.INFISICAL_PATH}}):" \
+          "   task infisical:init" \
+          "" \
+          "6) Pull secrets to dotenv for local dev:" \
+          "   task infisical:export -- --format dotenv --output-file .env.shared" \
+          "   # then: source .env.shared  (or point your app to it)" \
+          "" \
+          "7) Run your app with injected secrets (no file needed):" \
+          "   task infisical:run -- -- npm run dev   # replace with your command" \
+          "" \
+          "8) Get/set individual secrets:" \
+          "   task infisical:secrets:get -- DB_PASSWORD" \
+          "   task infisical:secrets:set -- API_KEY=myvalue   # or API_KEY=@/path/to/file" \
+          "" \
+          "9) Scan repo for leaks:" \
+          "   task infisical:scan -- --path ./" \
+          "" \
+          "Notes:" \
+          "- Defaults: domain EU, org {{.INFISICAL_ORG}}, project {{.INFISICAL_PROJECT_SLUG}}/{{.INFISICAL_PROJECT}}, env {{.INFISICAL_ENV}}, path {{.INFISICAL_PATH}}." \
+          "- Override defaults via env vars (e.g., INFISICAL_ENV=prod) or flags in CLI_ARGS; your flags win." \
+          "- To skip auto-opening URLs in guide:urls, set INFISICAL_OPEN=false."
