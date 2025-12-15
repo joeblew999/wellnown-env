@@ -109,42 +109,42 @@ tasks:
           {{.CLI_ARGS}}
 
   init:
-    desc: 'Link this project (e.g., task infisical:init -- --projectId <id> --path /)'
+    desc: 'Link this project (e.g., task infisical-cli:init -- --projectId <id> --path /)'
     env:
       INFISICAL_API_URL: '{{.INFISICAL_DOMAIN}}'
     cmds:
       - '{{.INFISICAL_BIN}} init {{.PROJECT_FLAG}} {{.PATH_FLAG}} {{.CLI_ARGS}}'
 
   run:
-    desc: 'Inject secrets and run a command (e.g., task infisical:run -- --env dev -- npm run dev)'
+    desc: 'Inject secrets and run a command (e.g., task infisical-cli:run -- --env dev -- npm run dev)'
     env:
       INFISICAL_API_URL: '{{.INFISICAL_DOMAIN}}'
     cmds:
       - '{{.INFISICAL_BIN}} run {{.ENV_FLAG}} {{.TOKEN_FLAG}} {{.CLI_ARGS}}'
 
   export:
-    desc: 'Export secrets (e.g., task infisical:export -- --env dev --format dotenv --output-file .env.shared)'
+    desc: 'Export secrets (e.g., task infisical-cli:export -- --env dev --format dotenv --output-file .env.shared)'
     env:
       INFISICAL_API_URL: '{{.INFISICAL_DOMAIN}}'
     cmds:
       - '{{.INFISICAL_BIN}} export {{.ENV_FLAG}} {{.PATH_FLAG}} {{.TOKEN_FLAG}} {{.CLI_ARGS}}'
 
   secrets:get:
-    desc: 'Get secrets (e.g., task infisical:secrets:get -- --env dev --path / DB_PASSWORD)'
+    desc: 'Get secrets (e.g., task infisical-cli:secrets:get -- --env dev --path / DB_PASSWORD)'
     env:
       INFISICAL_API_URL: '{{.INFISICAL_DOMAIN}}'
     cmds:
       - '{{.INFISICAL_BIN}} secrets get {{.ENV_FLAG}} {{.PATH_FLAG}} {{.TOKEN_FLAG}} {{.CLI_ARGS}}'
 
   secrets:set:
-    desc: 'Set secrets (e.g., task infisical:secrets:set -- --env dev API_KEY=myvalue)'
+    desc: 'Set secrets (e.g., task infisical-cli:secrets:set -- --env dev API_KEY=myvalue)'
     env:
       INFISICAL_API_URL: '{{.INFISICAL_DOMAIN}}'
     cmds:
       - '{{.INFISICAL_BIN}} secrets set {{.ENV_FLAG}} {{.PATH_FLAG}} {{.TOKEN_FLAG}} {{.CLI_ARGS}}'
 
   scan:
-    desc: 'Scan for leaked secrets (e.g., task infisical:scan -- --path ./)'
+    desc: 'Scan for leaked secrets (e.g., task infisical-cli:scan -- --path ./)'
     env:
       INFISICAL_API_URL: '{{.INFISICAL_DOMAIN}}'
     cmds:
@@ -158,7 +158,7 @@ tasks:
       - '{{.INFISICAL_BIN}} reset'
 
   cmd:
-    desc: 'Run any Infisical CLI command (e.g., task infisical:cmd -- secrets list)'
+    desc: 'Run any Infisical CLI command (e.g., task infisical-cli:cmd -- secrets list)'
     env:
       INFISICAL_API_URL: '{{.INFISICAL_DOMAIN}}'
     cmds:
@@ -212,35 +212,35 @@ tasks:
       - |
         printf '%s\n' \
           "1) Build CLI (once, if not built):" \
-          "   task infisical:build" \
+          "   task infisical-cli:build" \
           "" \
           "2) Get a machine identity service token (UI):" \
-          "   - Run: task infisical:guide:urls   # opens org/project/identities pages" \
+          "   - Run: task infisical-cli:guide:urls   # opens org/project/identities pages" \
           "   - In the UI, create/issue a service token for machine ID {{.INFISICAL_MACHINE_ID}} scoped to env \"{{.INFISICAL_ENV}}\" and path \"{{.INFISICAL_PATH}}\"." \
           "   - Copy the token (sst_...). Export it: export INFISICAL_TOKEN=\"sst_...\"" \
           "" \
           "3) Verify defaults and token presence:" \
-          "   task infisical:guide:check" \
+          "   task infisical-cli:guide:check" \
           "" \
           "4) (Optional) Create a service token via CLI instead of UI (requires existing login/token):" \
-          "   task infisical:service-token:create -- --access-level read --scope {{.INFISICAL_ENV}}:{{.INFISICAL_PATH}} --token-only" \
+          "   task infisical-cli:service-token:create -- --access-level read --scope {{.INFISICAL_ENV}}:{{.INFISICAL_PATH}} --token-only" \
           "" \
           "5) Link project (defaults: project {{.INFISICAL_PROJECT}}, env {{.INFISICAL_ENV}}, path {{.INFISICAL_PATH}}):" \
-          "   task infisical:init" \
+          "   task infisical-cli:init" \
           "" \
           "6) Pull secrets to dotenv for local dev:" \
-          "   task infisical:export -- --format dotenv --output-file .env.shared" \
+          "   task infisical-cli:export -- --format dotenv --output-file .env.shared" \
           "   # then: source .env.shared  (or point your app to it)" \
           "" \
           "7) Run your app with injected secrets (no file needed):" \
-          "   task infisical:run -- -- npm run dev   # replace with your command" \
+          "   task infisical-cli:run -- -- npm run dev   # replace with your command" \
           "" \
           "8) Get/set individual secrets:" \
-          "   task infisical:secrets:get -- DB_PASSWORD" \
-          "   task infisical:secrets:set -- API_KEY=myvalue   # or API_KEY=@/path/to/file" \
+          "   task infisical-cli:secrets:get -- DB_PASSWORD" \
+          "   task infisical-cli:secrets:set -- API_KEY=myvalue   # or API_KEY=@/path/to/file" \
           "" \
           "9) Scan repo for leaks:" \
-          "   task infisical:scan -- --path ./" \
+          "   task infisical-cli:scan -- --path ./" \
           "" \
           "Notes:" \
           "- Defaults: domain EU, org {{.INFISICAL_ORG}}, project {{.INFISICAL_PROJECT_SLUG}}/{{.INFISICAL_PROJECT}}, env {{.INFISICAL_ENV}}, path {{.INFISICAL_PATH}}." \

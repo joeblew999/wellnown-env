@@ -13,10 +13,10 @@ includes:
   pc:
     taskfile: cmd/pc-node/Taskfile.pc.yml
     dir: cmd/pc-node
-  infisical:
-    taskfile: Taskfile.infisical.yml
+  infisical-cli:
+    taskfile: Taskfile.infisical-cli.yml
   infisical-fly:
-    taskfile: Taskfile.fly.yml
+    taskfile: Taskfile.infisical-fly.yml
 
 vars:
   # Port to free (for port:free task)

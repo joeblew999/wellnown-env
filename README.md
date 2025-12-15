@@ -102,22 +102,22 @@ func main() {
 Use the Taskfile to build and run the Infisical CLI binary at `./.bin/infisical`.
 
 1. Build (or rebuild) the binary  
-   `task infisical:build`  
+   `task infisical-cli:build`  
    Uses `.src/infisical-cli`; override with `INFISICAL_SRC=...`. Override output with `INFISICAL_BIN=...`.
 
 2. Login (choose your method)  
-   `task infisical:login -- --method email --email you@example.com --domain https://app.infisical.com/api`  
-   Or service token: `task infisical:login -- --method token --token <token>`
+   `task infisical-cli:login -- --method email --email you@example.com --domain https://app.infisical.com/api`  
+   Or service token: `task infisical-cli:login -- --method token --token <token>`
 
 3. Link this project  
-   `task infisical:init -- --projectId <project_id> --path /`
+   `task infisical-cli:init -- --projectId <project_id> --path /`
 
 4. Pull or inject secrets  
-   - Export: `task infisical:export -- --env dev --format dotenv --output-file .env.shared`  
-   - Inject + run: `task infisical:run -- --env dev -- npm run dev`  
-   - Read single: `task infisical:secrets:get -- --env dev --path / DB_PASSWORD`
+   - Export: `task infisical-cli:export -- --env dev --format dotenv --output-file .env.shared`  
+   - Inject + run: `task infisical-cli:run -- --env dev -- npm run dev`  
+   - Read single: `task infisical-cli:secrets:get -- --env dev --path / DB_PASSWORD`
 
-Other helpers: `task infisical:version`, `task infisical:secrets:set -- --env dev API_KEY=myvalue`, `task infisical:scan -- --path ./`, `task infisical:reset`. Use `task infisical:cmd -- <any infisical args>` for anything else.
+Other helpers: `task infisical-cli:version`, `task infisical-cli:secrets:set -- --env dev API_KEY=myvalue`, `task infisical-cli:scan -- --path ./`, `task infisical-cli:reset`. Use `task infisical-cli:cmd -- <any infisical args>` for anything else.
 
 ---
 
