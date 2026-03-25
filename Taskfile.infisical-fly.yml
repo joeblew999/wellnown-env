@@ -7,7 +7,7 @@ vars:
   FLY_REGION: '{{default "ams" .FLY_REGION}}'
   FLY_IMAGE: '{{default "infisical/infisical:latest-postgres" .FLY_IMAGE}}'
   FLY_CONFIG: '{{default "fly.infisical.toml" .FLY_CONFIG}}'
-  FLY_ORG: '{{.FLY_ORG}}'
+  FLY_ORG: '{{default "personal" .FLY_ORG}}'
 
   # DB defaults
   FLY_DB_APP: '{{default (printf "%s-pg" .FLY_APP) .FLY_DB_APP}}'
@@ -56,7 +56,31 @@ tasks:
   db:create:
     desc: Create a Fly Postgres (optional; skip if you already have one)
     cmds:
-      - '{{.FLY_BIN}} postgres create --name {{.FLY_DB_APP}} --region {{.FLY_DB_REGION}} --initial-cluster-size 1 --vm-size shared-cpu-1x --volume-size 10 || true'
+      - |
+        if {{.FLY_BIN}} apps show {{.FLY_DB_APP}} >/dev/null 2>&1; then
+          echo "Fly Postgres app {{.FLY_DB_APP}} already exists; skipping create."
+        else
+          {{.FLY_BIN}} postgres create \
+            --name {{.FLY_DB_APP}} \
+            --region {{.FLY_DB_REGION}} \
+            --org {{.FLY_ORG}} \
+            --initial-cluster-size 1 \
+            --vm-size shared-cpu-1x \
+            --volume-size 10 || true
+        fi
+
+  db:attach:
+    desc: Attach Fly Postgres to the app and set INFISICAL_POSTGRES_URL secret
+    cmds:
+      - |
+        set -e
+        if ! {{.FLY_BIN}} apps show {{.FLY_DB_APP}} >/dev/null 2>&1; then
+          echo "Postgres app {{.FLY_DB_APP}} not found; run task infisical-fly:db:create first."; exit 1;
+        fi
+        {{.FLY_BIN}} postgres attach {{.FLY_DB_APP}} \
+          --app {{.FLY_APP}} \
+          --variable-name INFISICAL_POSTGRES_URL \
+          --yes
 
   secrets:set:
     desc: Set required secrets (needs env vars set in your shell)
@@ -185,6 +209,15 @@ tasks:
     desc: Destroy Upstash Redis (data loss!)
     cmds:
       - '{{.FLY_BIN}} redis destroy {{.FLY_REDIS_NAME}} --yes'
+
+  redis:create:
+    desc: Create an Upstash Redis (requires org; skip if you already have one)
+    cmds:
+      - |
+        if [ -z "{{.FLY_ORG}}" ]; then
+          echo "Set FLY_ORG to your Fly org slug (e.g., personal)"; exit 1;
+        fi
+        {{.FLY_BIN}} redis create --name {{.FLY_REDIS_NAME}} --region {{.FLY_REGION}} --org {{.FLY_ORG}} --no-replicas --enable-eviction || true
 
   destroy:all:
     desc: Destroy machines, app, PG, and Redis (danger!)
